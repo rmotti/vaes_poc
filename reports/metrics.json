@@ -1,0 +1,51 @@
+{
+    "roc_auc": 0.8222441376287529,
+    "average_precision": 0.8605049333987543,
+    "threshold": 0.0038731126114726067,
+    "sensitivity": 0.4307692307692308,
+    "specificity": 0.9188034188034188,
+    "precision": 0.8983957219251337,
+    "confusion_matrix": {
+        "tn": 215,
+        "fp": 19,
+        "fn": 222,
+        "tp": 168
+    },
+    "roc_auc_naive": 0.6171597633136094,
+    "comparison": {
+        "Brilho médio": {
+            "auc_test": 0.5757,
+            "auc_test_std": 0.0
+        },
+        "Imagem média": {
+            "auc_test": 0.5599,
+            "auc_test_std": 0.0
+        },
+        "PCA (8 componentes)": {
+            "auc_test": 0.7255,
+            "auc_test_std": 0.0
+        },
+        "Autoencoder comum": {
+            "auc_test": 0.8333,
+            "auc_test_std": 0.0226
+        },
+        "VAE": {
+            "auc_test": 0.8249,
+            "auc_test_std": 0.006
+        },
+        "Nível de detalhe*": {
+            "auc_test": 0.9065,
+            "auc_test_std": 0.0
+        },
+        "CNN supervisionada*": {
+            "auc_test": 0.9216,
+            "auc_test_std": 0.0
+        }
+    },
+    "queue_simulation": {
+        "mean_position_arrival": 50.5522,
+        "mean_position_model": 21.27475,
+        "top10_arrival": 1.01,
+        "top10_model": 3.908
+    }
+}

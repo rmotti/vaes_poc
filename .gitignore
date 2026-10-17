@@ -1,7 +1,16 @@
 .DS_Store
 .ipynb_checkpoints/
 __pycache__/
+*.py[cod]
+
+# ambiente e caches
+.venv/
+.pytest_cache/
+.ruff_cache/
 
 # gerados ao rodar o notebook
 data/
 pesos/
+
+# gerados ao rodar o pipeline (make train)
+models/*.pt
