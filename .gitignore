@@ -10,7 +10,7 @@ __pycache__/
 
 # gerados ao rodar o notebook
 data/
-!interfaces/data/
+!interfaces/public/data/
 pesos/
 
 # gerados ao rodar o pipeline (make train)
