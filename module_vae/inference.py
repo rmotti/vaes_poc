@@ -2,10 +2,13 @@
 
     uv run python -m module_vae.inference                    # 5 exames sorteados do teste
     uv run python -m module_vae.inference --image exame.png  # um raio-X qualquer
+    uv run python -m module_vae.inference --run rsna_ap_pa       # o modelo treinado com AP e PA
 
-A imagem externa é convertida para tons de cinza e redimensionada para 64×64 px. O
-PneumoniaMNIST já vem recortado no tórax, então exames com outro enquadramento tendem a
-receber score alto (Seção 9.1 do notebook).
+A imagem externa é convertida para tons de cinza e redimensionada para a resolução do
+modelo. Ela deve ser um raio-X de tórax frontal inteiro, como os do RSNA: exames com
+outro enquadramento tendem a receber score alto (Seção 9.1 do notebook). O modelo
+principal foi treinado só com incidência PA; um exame AP também tende a receber score
+alto.
 """
 
 from pathlib import Path
@@ -17,9 +20,9 @@ from PIL import Image
 import torch
 import typer
 
-from module_vae.config import FIGURES_DIR, METADATA_PATH, MODEL_PATH
-from module_vae.dataset import load_split
+from module_vae.config import RunPaths
 from module_vae.modeling.predict import load_model, predict
+from module_vae.modeling.split import load_splits
 from module_vae.plots import apply_style, plot_heatmaps
 
 app = typer.Typer()
@@ -27,7 +30,8 @@ app = typer.Typer()
 
 def load_image(path: Path, image_size: int) -> torch.Tensor:
     """Lê uma imagem e devolve um tensor (1, 1, H, W) com pixels em [0, 1]."""
-    img = Image.open(path).convert("L").resize((image_size, image_size), Image.BILINEAR)
+    img = Image.open(path).convert("L")
+    img = img.resize((image_size, image_size), Image.Resampling.BILINEAR)
     return torch.tensor(np.asarray(img), dtype=torch.float32)[None, None] / 255.0
 
 
@@ -39,16 +43,21 @@ def main(
     n_samples: Annotated[
         int, typer.Option(help="Exames sorteados do teste quando não há --image.")
     ] = 5,
+    run: Annotated[
+        str, typer.Option(help="Execução treinada: rsna_pa ou rsna_ap_pa.")
+    ] = "rsna_pa",
 ):
-    model, metadata = load_model(MODEL_PATH, METADATA_PATH)
+    paths = RunPaths(run)
+    model, metadata = load_model(paths.model, paths.metadata)
 
     if image is not None:
         x, labels = load_image(image, metadata["image_size"]), None
         title = image.name
     else:
-        x_test, y_test = load_split("test", metadata["image_size"])
-        idx = np.random.default_rng(42).choice(len(x_test), n_samples, replace=False)
-        x, labels = x_test[idx], y_test[idx]
+        splits = load_splits(metadata["image_size"], metadata["views"])
+        idx = np.random.default_rng(42).choice(len(splits.x_test), n_samples, replace=False)
+        x = splits.x_test[idx]
+        labels = np.where(splits.y_test[idx] == 1, metadata["positive_class"], "normal")
         title = f"{n_samples} exames sorteados do teste"
 
     predictions, x_rec, maps = predict(model, x, metadata["sigma"], metadata["threshold"])
@@ -58,7 +67,7 @@ def main(
         {1: "revisar com prioridade", 0: "dentro do padrão"}
     )
     if labels is not None:
-        predictions.insert(0, "label", np.where(labels == 1, "pneumonia", "normal"))
+        predictions.insert(0, "label", labels)
     logger.success(f"Predições:\n{predictions}")
 
     apply_style()
@@ -70,7 +79,7 @@ def main(
         list(range(len(x))),
         metadata["vmax_map"],
         title,
-        FIGURES_DIR / "inference.png",
+        paths.figures / "inference.png",
         labels=labels,
     )
 
