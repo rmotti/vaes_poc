@@ -100,3 +100,10 @@ def test_localization_reports_chance_inside_the_mask():
 
     assert results["box_area_fraction"] == 16 / 256
     assert results["box_fraction_in_mask"] == 16 / 64
+
+
+def test_preprocessing_from_metadata():
+    v3 = Preprocessing.from_metadata({"normalize": True, "lung_mask": True, "sigma": 4.0})
+
+    assert v3 == Preprocessing(normalize=True, lung_mask=True)
+    assert Preprocessing.from_metadata({"sigma": 10.0}) == Preprocessing()  # v1 e v2

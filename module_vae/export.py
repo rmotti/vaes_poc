@@ -1,6 +1,6 @@
 """Exporta os dados da demo (interfaces/) a partir dos modelos treinados.
 
-    uv run python -m module_vae.export                      # rsna_pa_v2 e rsna_ap_pa_v2
+    uv run python -m module_vae.export                      # rsna_pa_v3 e rsna_ap_pa_v3
     uv run python -m module_vae.export --shortcut-run ""    # só o modelo PA
 
 O site (Next.js, em interfaces/) não roda o modelo: scores, reconstruções, mapas de
@@ -13,6 +13,10 @@ interfaces/public/data, junto com o data.json que a página lê.
 
 Todos os exames vêm do conjunto de teste, que não foi usado para escolher nada. As
 imagens são do RSNA: veja a atribuição exigida em interfaces/README.md.
+
+Cada modelo é exportado com o pré-processamento do próprio treino (salvo nos metadados):
+na v3, a normalização de intensidade (também aplicada à imagem original mostrada no site)
+e a máscara dos pulmões nos mapas e nos scores.
 """
 
 from datetime import date
@@ -38,6 +42,7 @@ from module_vae.modeling.calibration import sigmas_for
 from module_vae.modeling.predict import load_model, predict, reconstruct
 from module_vae.modeling.split import DataSplits, load_splits
 from module_vae.plots import HEATMAP_CMAP
+from module_vae.preprocessing import Preprocessing
 
 OUT_DIR = PROJ_ROOT / "interfaces" / "public" / "data"
 ORIGINAL_SIZE = 512  # resolução do exame original mostrado no site (o modelo usa 128 px)
@@ -110,16 +115,21 @@ class RunExport:
         self.paths = RunPaths(run)
         self.model, self.meta = load_model(self.paths.model, self.paths.metadata)
         self.size = self.meta["image_size"]
+        self.preprocessing = Preprocessing.from_metadata(self.meta)
+        self.mask = self.meta.get("mask")  # máscara dos pulmões (v3), se o modelo usa
         self.splits: DataSplits = load_splits(
-            self.size, self.meta["views"], hygiene=self.meta.get("hygiene", False)
+            self.size,
+            self.meta["views"],
+            hygiene=self.meta.get("hygiene", False),
+            preprocessing=self.preprocessing,
         )
         s = self.splits
         self.pred, self.rec_test, self.maps_test = predict(
-            self.model, s.x_test, self.meta["sigma"], self.meta["threshold"]
+            self.model, s.x_test, self.meta["sigma"], self.meta["threshold"], self.mask
         )
         self.score_test = self.pred["anomaly_score"].to_numpy()
         self.rec_val = reconstruct(self.model, s.x_val)
-        score_val = anomaly_score(s.x_val, self.rec_val, self.meta["sigma"])
+        score_val = anomaly_score(s.x_val, self.rec_val, self.meta["sigma"], self.mask)
         self.normal_val_scores = np.sort(score_val[s.y_val == 0])
 
         auc_test = roc_auc_score(s.y_test, self.score_test)
@@ -136,6 +146,8 @@ class RunExport:
         exam_id = f"{prefix}{i:04d}"
         pid = self.splits.patient_ids_test[i]
         original, _ = read_dicom(RSNA_DIR / "stage_2_train_images" / f"{pid}.dcm", ORIGINAL_SIZE)
+        # O site mostra o exame como o modelo o vê (por exemplo, com o brilho normalizado)
+        original = self.preprocessing.apply(original[None])[0]
         Image.fromarray(original).save(self.dir / "exams" / f"{exam_id}.jpg", quality=88)
         save_gray(self.rec_test[i, 0].numpy(), self.dir / "exams" / f"{exam_id}_rec.png")
         save_heat(
@@ -204,8 +216,8 @@ def export_sigma(run: RunExport) -> dict:
     """Um exame com opacidade visto com cada largura σ testada na calibração.
 
     O exemplo é a opacidade em que o mapa do σ escolhido mais concentra energia dentro das
-    caixas: é um caso favorável, escolhido para ilustrar o efeito de σ (a localização no
-    conjunto todo fica perto do acaso, docs/04-resultados-rsna.md).
+    caixas: é um caso favorável, escolhido para ilustrar o efeito de σ, e não um exame
+    típico (a localização no conjunto todo está em docs/09-resultados-v3.md).
     """
     s, size = run.splits, run.size
     maps = run.maps_test[:, 0].numpy()
@@ -223,11 +235,11 @@ def export_sigma(run: RunExport) -> dict:
 
     steps = []
     for sigma in sigmas_for(size):
-        maps_s = anomaly_map(s.x_test, run.rec_test, sigma)
+        maps_s = anomaly_map(s.x_test, run.rec_test, sigma, run.mask)
         name = f"exams/sigma_{sigma:g}.png"
         vmax = float(np.percentile(maps_s.numpy(), 99.5))
         save_heat(maps_s[best, 0].numpy(), run.dir / name, vmax)
-        auc = roc_auc_score(s.y_val, anomaly_score(s.x_val, run.rec_val, sigma))
+        auc = roc_auc_score(s.y_val, anomaly_score(s.x_val, run.rec_val, sigma, run.mask))
         steps.append({"sigma": sigma, "auc_val": round(float(auc), 3), "heat": run.url(name)})
 
     return {"example": run.exam(best, "SG-"), "chosen": run.meta["sigma"], "steps": steps}
@@ -299,11 +311,11 @@ def export_latent(run: RunExport, interp_from: int, interp_to: int) -> dict:
 @app.command()
 def main(
     run: Annotated[str, typer.Option(help="Modelo principal (só PA): alimenta as três abas.")] = (
-        "rsna_pa_v2"
+        "rsna_pa_v3"
     ),
     shortcut_run: Annotated[
         str, typer.Option(help="Modelo com AP e PA para o botão da fila ('' para não exportar).")
-    ] = "rsna_ap_pa_v2",
+    ] = "rsna_ap_pa_v3",
     seed: Annotated[int, typer.Option(help="Semente do sorteio dos exames.")] = 7,
 ):
     # A pasta é toda gerada aqui: apagar evita sobrar imagem de uma exportação anterior.

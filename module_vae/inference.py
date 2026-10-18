@@ -57,8 +57,7 @@ def main(
 ):
     paths = RunPaths(run)
     model, metadata = load_model(paths.model, paths.metadata)
-    # Modelos anteriores às ablações não têm essas chaves: nada é aplicado.
-    preprocessing = Preprocessing(**{k: metadata.get(k, False) for k in Preprocessing().as_dict()})
+    preprocessing = Preprocessing.from_metadata(metadata)
 
     if image is not None:
         x, labels = load_image(image, metadata["image_size"], preprocessing), None

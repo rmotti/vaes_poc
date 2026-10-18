@@ -53,6 +53,11 @@ class Preprocessing:
     def as_dict(self) -> dict[str, bool]:
         return asdict(self)
 
+    @classmethod
+    def from_metadata(cls, metadata: dict) -> "Preprocessing":
+        """As ablações ligadas no treino de um modelo salvo (antes delas: nenhuma)."""
+        return cls(**{key: bool(metadata.get(key, False)) for key in asdict(cls())})
+
 
 def black_margin(lines: np.ndarray, limit: int) -> int:
     """Quantas linhas seguidas, a partir do início, são moldura preta (até limit)."""
