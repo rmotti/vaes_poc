@@ -10,6 +10,7 @@ __pycache__/
 
 # gerados ao rodar o notebook
 data/
+!interfaces/data/
 pesos/
 
 # gerados ao rodar o pipeline (make train)
@@ -18,9 +19,6 @@ models/**/*.pt
 # resultados do teste rápido (make quick)
 models/*_quick/
 reports/*_quick/
-
-# dados do esboço da demo: imagens do RSNA (ver interfaces/README.md antes de versionar)
-interfaces/data/
 
 # rastreamento local do MLflow (make mlflow)
 mlflow.db
