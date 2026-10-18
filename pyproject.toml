@@ -19,6 +19,7 @@ dependencies = [
     "kagglehub>=1.0.2",
     "loguru",
     "matplotlib",
+    "mlflow>=3.17.1",
     "numpy",
     "pandas",
     "pydicom>=3.0.2",
