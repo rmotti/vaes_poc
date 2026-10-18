@@ -92,6 +92,12 @@ predict:
 	$(PYTHON_INTERPRETER) -m module_vae.inference
 
 
+## Open the MLflow UI to compare runs (http://127.0.0.1:5001)
+.PHONY: mlflow
+mlflow:
+	uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001
+
+
 ## Latent size and beta experiments (needs `make train` first)
 .PHONY: ablation
 ablation:

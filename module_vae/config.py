@@ -16,6 +16,11 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 MODELS_DIR = PROJ_ROOT / "models"
 REPORTS_DIR = PROJ_ROOT / "reports"
 
+# Rastreamento dos experimentos no MLflow (local e fora do git): parâmetros e métricas em
+# mlflow.db, artefatos (figuras, tabelas, pesos) em mlartifacts/
+MLFLOW_TRACKING_URI = f"sqlite:///{PROJ_ROOT / 'mlflow.db'}"
+MLFLOW_ARTIFACTS_DIR = PROJ_ROOT / "mlartifacts"
+
 # Resolução das imagens. Os DICOMs do RSNA têm 1024 px; em 64 px (a resolução do
 # notebook) opacidades pequenas somem.
 IMAGE_SIZE = 128

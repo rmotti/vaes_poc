@@ -3,23 +3,31 @@
 uv run python -m module_vae.main                  # só incidência PA (resultado principal)
 uv run python -m module_vae.main --views AP,PA    # AP e PA juntas: mostra o atalho AP/PA
 uv run python -m module_vae.main --epochs 2 --n-seeds 1 --no-baselines   # teste rápido
+
+Cada execução é registrada no MLflow (parâmetros, curvas de treino, métricas e artefatos);
+use --label para dar um nome a ela, por exemplo --label v2-linha-de-base.
 """
 
 import json
 from typing import Annotated
 
 from loguru import logger
+import mlflow
 import numpy as np
+import pandas as pd
 from sklearn.metrics import roc_auc_score
 import torch
 import typer
 
 from module_vae.config import (
+    BATCH_SIZE,
+    BETA,
     DEVICE,
     EPOCHS,
     IMAGE_SIZE,
     KL_WARMUP_EPOCHS,
     LATENT_DIM,
+    LEARNING_RATE,
     SEEDS,
     THRESHOLD_PERCENTILE,
     RunPaths,
@@ -50,6 +58,7 @@ from module_vae.plots import (
     plot_test_evaluation,
     plot_training_curves,
 )
+from module_vae.tracking import flatten, log_comparison, log_history, tracked_run
 
 app = typer.Typer()
 
@@ -66,10 +75,40 @@ def main(
     baselines: Annotated[
         bool, typer.Option(help="Compara com PCA, autoencoder comum e CNN.")
     ] = True,
+    label: Annotated[
+        str, typer.Option(help="Nome da execução no MLflow, por exemplo v2-linha-de-base.")
+    ] = "manual",
 ):
     view_list = sorted(v.strip().upper() for v in views.split(","))
     paths = RunPaths(run_name(view_list))
     seeds = SEEDS[:n_seeds]
+    params = {
+        "views": ",".join(view_list),
+        "image_size": image_size,
+        "latent_dim": latent_dim,
+        "beta": BETA,
+        "epochs": epochs,
+        "batch_size": BATCH_SIZE,
+        "learning_rate": LEARNING_RATE,
+        "kl_warmup_epochs": KL_WARMUP_EPOCHS,
+        "seeds": ",".join(str(s) for s in seeds),
+        "baselines": baselines,
+        "threshold_percentile": THRESHOLD_PERCENTILE,
+    }
+    with tracked_run(paths.name, label, params):
+        run_pipeline(paths, view_list, image_size, latent_dim, epochs, seeds, baselines)
+
+
+def run_pipeline(
+    paths: RunPaths,
+    view_list: list[str],
+    image_size: int,
+    latent_dim: int,
+    epochs: int,
+    seeds: list[int],
+    baselines: bool,
+) -> None:
+    """Executa o pipeline dentro de uma execução já aberta no MLflow."""
     positive = "opacidade"
 
     logger.info(f"Execução: {paths.name} | {image_size} px | dispositivo: {DEVICE}")
@@ -81,6 +120,15 @@ def main(
 
     splits = load_splits(image_size, view_list)
     y_test = splits.y_test
+    mlflow.log_params(
+        {
+            "n_train_normal": len(splits.x_train_normal),
+            "n_val": len(splits.y_val),
+            "n_test": len(y_test),
+            "n_test_positive": int(y_test.sum()),
+            "n_test_other": len(splits.x_test_other),
+        }
+    )
 
     # =============================================
     # TREINO DO VAE (somente exames normais)
@@ -97,6 +145,11 @@ def main(
         epochs=epochs,
     )
     plot_training_curves(history, KL_WARMUP_EPOCHS, paths.figures / "training_curves.png")
+    log_history(history)
+    paths.reports.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(history, index=pd.RangeIndex(1, epochs + 1, name="epoch")).to_csv(
+        paths.reports / "history.csv"
+    )
 
     # Amostras de z ~ N(0, I) passadas pelo decoder: o VAE também é um modelo gerativo.
     set_seed(123)
@@ -113,6 +166,9 @@ def main(
     sigma, auc_val_by_sigma = select_sigma(splits.x_val, rec_val, splits.y_val)
     score_val = anomaly_score(splits.x_val, rec_val, sigma)
     threshold = calibrate_threshold(score_val, splits.y_val)
+    mlflow.log_params({"sigma": sigma, "threshold": threshold})
+    mlflow.log_metric("val_auc", auc_val_by_sigma[sigma])
+    mlflow.log_metrics({f"val_auc_sigma_{s:g}": auc for s, auc in auc_val_by_sigma.items()})
 
     # =============================================
     # AVALIAÇÃO NO TESTE
@@ -226,7 +282,6 @@ def main(
         metadata_path=paths.metadata,
     )
 
-    paths.reports.mkdir(parents=True, exist_ok=True)
     predictions.insert(0, "label", y_test)
     predictions.to_csv(paths.reports / "test_predictions.csv", index_label="test_index")
     threshold_table.to_csv(paths.reports / "thresholds.csv")
@@ -242,9 +297,20 @@ def main(
         metrics["comparison"] = (
             comparison[["auc_test", "auc_test_std"]].round(4).to_dict(orient="index")
         )
+        log_comparison(comparison)
 
     with open(paths.reports / "metrics.json", "w", encoding="utf-8") as file:
         json.dump({**metrics, "queue_simulation": queue}, file, indent=4, ensure_ascii=False)
+
+    # =============================================
+    # MLFLOW: métricas de teste e artefatos
+    # =============================================
+
+    test_metrics = {k: v for k, v in metrics.items() if k not in ("threshold", "comparison")}
+    mlflow.log_metrics(flatten({**test_metrics, "queue_simulation": queue}, "test"))
+    mlflow.log_artifacts(str(paths.reports), artifact_path="reports")
+    mlflow.log_artifact(str(paths.model), artifact_path="model")
+    mlflow.log_artifact(str(paths.metadata), artifact_path="model")
 
     logger.success(f"Pipeline executado com sucesso. Relatórios em {paths.reports}")
 

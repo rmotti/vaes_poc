@@ -14,3 +14,8 @@ pesos/
 
 # gerados ao rodar o pipeline (make train)
 models/**/*.pt
+
+# rastreamento local do MLflow (make mlflow)
+mlflow.db
+mlartifacts/
+mlruns/
