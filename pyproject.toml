@@ -5,7 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "module_vae"
 version = "0.0.1"
-description = "Triagem de raio-X de tórax com VAE (PneumoniaMNIST)"
+description = "Triagem de raio-X de tórax com VAE (RSNA Pneumonia)"
 authors = [
   { name = "rmotti" },
 ]
@@ -16,11 +16,12 @@ classifiers = [
 
 ]
 dependencies = [
+    "kagglehub>=1.0.2",
     "loguru",
     "matplotlib",
-    "medmnist>=3.0.2",
     "numpy",
     "pandas",
+    "pydicom>=3.0.2",
     "scikit-learn",
     "scipy",
     "torch>=2.4",
