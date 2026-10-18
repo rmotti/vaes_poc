@@ -31,7 +31,7 @@ Com rótulos sobrando, a pergunta "por que VAE e não CNN?" fica mais forte. As 
 
 ## Plano da demo (pasta `interfaces/`, hospedagem na Vercel)
 
-Site estático com três abas:
+Site em Next.js (React), pré-renderizado no build, com três abas:
 
 1. **Fila de triagem:** a lista de trabalho se reordena pelo score; visualizador com original, reconstrução, mapa de calor e caixas do laudo; botão AP + PA mostra o atalho ao vivo.
 2. **Por dentro do VAE:** gerador de raios-X pelos 8 eixos de *z*, mapa do espaço latente, efeito do σ, interpolação.
@@ -39,4 +39,4 @@ Site estático com três abas:
 
 Pré-calculado + decoder em ONNX no navegador: funciona offline, sem GPU e sem Wi-Fi. Ensaiar e gravar um vídeo de reserva.
 
-**Pendência:** conferir se as regras da competição do RSNA permitem publicar as imagens num site público. Alternativa: imagens do NIH ChestX-ray14 (domínio público, origem dos exames do RSNA).
+**Imagens no site:** os termos de uso do RSNA Pneumonia Detection Challenge permitem redistribuir as imagens e as anotações com atribuição ao NIH e ao RSNA, sem tentar identificar os pacientes. A regra geral do Kaggle contra redistribuir (seção 7.B) não foi substituída pelas regras específicas da competição. Mesmo assim, por ser uma competição encerrada e um trabalho acadêmico, decidimos publicar, com a atribuição completa no rodapé do site e em `interfaces/README.md`.
