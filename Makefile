@@ -96,6 +96,12 @@ predict:
 	$(PYTHON_INTERPRETER) -m module_vae.inference
 
 
+## Export the demo data (interfaces/data) from the trained PA and AP+PA models
+.PHONY: export
+export:
+	$(PYTHON_INTERPRETER) -m module_vae.export
+
+
 ## Open the MLflow UI to compare runs (http://127.0.0.1:5001)
 .PHONY: mlflow
 mlflow:
