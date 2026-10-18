@@ -22,6 +22,7 @@ from module_vae.config import (
     MLFLOW_TRACKING_URI,
     REPORTS_DIR,
 )
+from module_vae.plots import apply_style, plot_ablation_rule
 
 AUC = "metrics.val_auc"
 POINTING = "metrics.val_localization_pointing_game"
@@ -101,9 +102,10 @@ def main(
     by_name = runs.groupby("tags.mlflow.runName")
 
     reference = pd.concat([by_name.get_group(name) for name in ABLATION_REFERENCE])
-    rows = {"v2 (referência)": {**apply_rule(reference, reference), "accepted": None}}
-    for name in candidates.split(","):
-        rows[name] = apply_rule(reference, by_name.get_group(name.strip()))
+    groups = {"v2 (referência)": reference}
+    groups |= {name.strip(): by_name.get_group(name.strip()) for name in candidates.split(",")}
+    rows = {name: apply_rule(reference, runs) for name, runs in groups.items()}
+    rows["v2 (referência)"]["accepted"] = None
 
     table = pd.DataFrame(rows).T
 
@@ -112,6 +114,23 @@ def main(
     table.to_csv(path, index_label="run")
     logger.success(f"Regra das ablações (validação, média das sementes):\n{table.to_string()}")
     logger.info(f"Tabela salva em {path}")
+
+    apply_style()
+    plot_ablation_rule(
+        {
+            name: pd.DataFrame(
+                {
+                    "auc": runs[AUC].to_numpy(),
+                    "lift": (runs[POINTING] - chance_level(runs)).to_numpy(),
+                }
+            )
+            for name, runs in groups.items()
+        },
+        ABLATION_MIN_AUC_GAIN,
+        ABLATION_MIN_POINTING_GAIN,
+        {name: row["accepted"] for name, row in rows.items()},
+        REPORTS_DIR / output / "figures" / "ablations.png",
+    )
 
 
 if __name__ == "__main__":

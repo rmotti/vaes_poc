@@ -322,3 +322,55 @@ def plot_ablation(latent: pd.Series, beta: pd.Series, path: Path) -> None:
         ax.set_title(f"AUC (validação) × {name}")
     axes[0].set_ylabel("AUC-ROC (validação)")
     save_figure(fig, path)
+
+
+def plot_ablation_rule(
+    seeds: dict[str, pd.DataFrame],
+    min_auc_gain: float,
+    min_lift_gain: float,
+    accepted: dict[str, bool | None],
+    path: Path,
+) -> None:
+    """Cada configuração das ablações: as sementes (pontos) e a média ± desvio-padrão.
+
+    Dois painéis, cada um com a sua escala: AUC de validação e localização acima do acaso.
+    A linha cinza é a média da v2; a tracejada, o ganho mínimo exigido pela regra.
+
+    Args:
+        seeds (dict[str, pd.DataFrame]): Por configuração (a primeira é a referência), as
+            colunas "auc" e "lift" de cada semente.
+        min_auc_gain (float): Ganho mínimo de AUC da regra.
+        min_lift_gain (float): Ganho mínimo de localização acima do acaso.
+        accepted (dict[str, bool | None]): Decisão da regra por configuração.
+        path (Path): Onde salvar.
+    """
+    names = list(seeds)
+    reference = seeds[names[0]]
+    fig, axes = plt.subplots(1, 2, figsize=(11, 0.55 * len(names) + 1.6), sharey=True)
+    for ax, column, gain, title, scale in [
+        (axes[0], "auc", min_auc_gain, "AUC (validação)", 1),
+        (axes[1], "lift", min_lift_gain, "Pixel mais quente na caixa, acima do acaso (p.p.)", 100),
+    ]:
+        base = reference[column].mean() * scale
+        ax.axvline(base, color=NEUTRAL_COLOR, lw=1)
+        ax.axvline(base + gain * scale, color=NEUTRAL_COLOR, lw=1, ls="--")
+        for row, name in enumerate(names):
+            values = seeds[name][column].to_numpy() * scale
+            y = len(names) - 1 - row
+            color = NORMAL_COLOR if accepted.get(name) is not False else NEUTRAL_COLOR
+            ax.scatter(values, np.full(len(values), y), s=18, color=color, alpha=0.45, lw=0)
+            ax.errorbar(
+                values.mean(), y, xerr=values.std(ddof=1), fmt="o", ms=8, color=color, capsize=0
+            )
+        ax.set_title(title)
+        ax.grid(axis="y", visible=False)
+    labels = {True: "  (aceita)", False: "  (rejeitada)", None: ""}
+    axes[0].set_yticks(range(len(names)))
+    axes[0].set_yticklabels([n + labels[accepted.get(n)] for n in reversed(names)])
+    fig.suptitle(
+        "Ablações × v2: sementes (pontos claros) e média ± desvio-padrão. "
+        "Linha cheia: média da v2; tracejada: ganho mínimo da regra",
+        fontsize=9,
+        color=TEXT_COLOR_2,
+    )
+    save_figure(fig, path)
