@@ -7,12 +7,16 @@ export default function ExamComparison({
   threshold,
   imageSize,
   originalSize,
+  normalized,
+  lungMask,
 }: {
   exam: Exam;
   sigma: number;
   threshold: number;
   imageSize?: number;
   originalSize?: number;
+  normalized?: boolean;
+  lungMask?: boolean;
 }) {
   const cards = [
     {
@@ -21,7 +25,7 @@ export default function ExamComparison({
       image: exam.img,
       alt: `Radiografia original ${exam.id}`,
       caption: imageSize
-        ? `${originalSize ? `Original apresentado: ${originalSize} × ${originalSize} px. ` : ""}O modelo recebe uma versão de ${imageSize} × ${imageSize} px.`
+        ? `${normalized ? "A imagem exibida já tem intensidade normalizada entre os percentis 1 e 99. " : ""}${originalSize ? `Imagem apresentada: ${originalSize} × ${originalSize} px. ` : ""}O modelo recebe uma versão de ${imageSize} × ${imageSize} px.`
         : "A imagem original é reduzida e normalizada antes de entrar no modelo. A resolução não foi incluída nesta exportação.",
     },
     {
@@ -37,7 +41,7 @@ export default function ExamComparison({
       detail: "3 · MAPA DE ANOMALIA",
       image: exam.img,
       alt: `Mapa de diferenças de ${exam.id}`,
-      caption: `O resíduo é suavizado com σ = ${sigma} px e elevado ao quadrado. A cor destaca diferenças maiores.`,
+      caption: `O resíduo é suavizado com σ = ${sigma} px e elevado ao quadrado.${lungMask ? " O mapa é zerado fora da máscara pulmonar média." : ""} A cor destaca diferenças maiores.`,
     },
   ];
   return (
@@ -67,7 +71,7 @@ export default function ExamComparison({
         <span aria-hidden="true">→</span>
         <div>
           <span>MAPA</span>
-          <code>[Gσ ∗ (x − x̂)]²</code>
+          <code>{lungMask ? "M ⊙ [Gσ ∗ (x − x̂)]²" : "[Gσ ∗ (x − x̂)]²"}</code>
         </div>
         <span aria-hidden="true">→</span>
         <div>
@@ -89,6 +93,7 @@ export default function ExamComparison({
         Gσ representa o filtro gaussiano; ∗ é a convolução. A suavização
         acontece antes do quadrado. Imagens e score foram calculados na
         exportação, com escala de cor fixa por modelo.
+        {lungMask && " M é a máscara fixa dos pulmões; ⊙ multiplica pixel a pixel. A média é calculada na imagem inteira, incluindo os zeros fora da máscara, conforme o código do score."}
       </p>
     </div>
   );

@@ -2,6 +2,8 @@
 
 Este guia descreve o código e os resultados versionados no repositório. Os números abaixo são da execução **`rsna_pa_v2`, semente 0**, salvo quando outra execução for indicada. Resultados antigos em `rsna_pa` e `rsna_ap_pa` pertencem à v1.
 
+> Atualização de 18/10/2026: a demo agora usa a **v3**, com normalização por imagem e máscara pulmonar média. Os números da seção 7 permanecem como referência histórica da v2. Veja os [resultados finais da v3](09-resultados-v3.md) e a seção **Modelos e métricas** (`/#models`) para comparar as versões. Na v3, a imagem apresentada como original já é normalizada; o mapa é `M ⊙ [Gσ ∗ (x − x̂)]²`, e o score continua sendo a média na imagem inteira, com zeros fora da máscara.
+
 ## 1. Qual pergunta o projeto tenta responder?
 
 Um modelo treinado apenas com radiografias normais consegue reconhecer exames diferentes do padrão e colocá-los mais cedo numa fila de revisão?
@@ -93,7 +95,7 @@ No RSNA, incidência e classe têm forte associação. Os exames com opacidade s
 
 O resultado principal usa apenas PA. O modelo AP + PA é uma execução separada para investigar esse efeito. Sua AUC geral é maior, mas cai quando cada incidência é avaliada isoladamente. Na interface, trocar o modelo também troca a amostra da fila, porque cada execução tem seu próprio conjunto elegível; não é uma comparação pareada dos mesmos vinte exames.
 
-## 7. O que os resultados atuais permitem concluir?
+## 7. O que os resultados da v2 permitiam concluir?
 
 | Medida | PA v2, semente 0 | Como interpretar |
 |---|---:|---|
@@ -117,7 +119,7 @@ A evidência mais favorável está na **ordenação**, enquanto o limiar escolhi
 
 `module_vae/export.py` carrega pesos e metadados, calcula reconstruções e scores e salva `interfaces/public/data/data.json` com imagens e sprites. Os originais apresentados têm 512 × 512; o modelo e seus mapas usam 128 × 128. O JSON usa códigos como `EX-0006`, sem guardar o patientId original.
 
-`interfaces/app/page.tsx` lê o JSON no build e entrega os dados aos componentes React. O Next.js pré-renderiza a página. As quatro áreas ficam montadas, preservando as escolhas ao navegar.
+`interfaces/app/page.tsx` lê os JSONs no build e entrega os dados aos componentes React. O Next.js pré-renderiza a página. As cinco áreas ficam montadas, preservando as escolhas ao navegar.
 
 **Entenda o VAE:** é a entrada padrão. O percurso tem cinco etapas: problema, arquitetura, parte variacional, score e aplicação na fila. O diagrama mostra o encoder, as distribuições e o decoder; a fórmula de treino é explicada em linguagem técnica e comum. Uma distribuição de uma dimensão permite ajustar μ, σ e ε e observar `z = μ + σ × ε`. Esses valores são didáticos, não são códigos de um paciente e não executam o modelo. A etapa do score usa um exame real exportado, com suas imagens e limiar reais. A etapa final conecta esse exame às duas ordenações e aos limites de avaliação.
 
@@ -130,6 +132,12 @@ A simulação permite velocidades de 1,3 s, 0,65 s e 0,325 s por chegada; isso c
 **Por dentro do VAE:** o gerador consulta nove imagens por eixo latente, entre −3 e +3. Só um eixo muda por vez; não há decoder executando no navegador. O mapa usa as duas primeiras componentes da PCA dos códigos μ. O controle de suavização e a interpolação também consultam resultados pré-calculados. A projeção 2D é uma visualização, não uma classificação.
 
 **Você × VAE:** o usuário ordena oito exames, revela os rótulos e compara quantas opacidades aparecem no começo das filas. O estado fica no navegador durante a sessão; não há votação remota, conta ou placar compartilhado.
+
+**Modelos e métricas:** a página separa PA de AP + PA e permite selecionar a versão. O gráfico e a tabela mostram a evolução; a AUC do modelo salvo fica separada da média ± desvio-padrão de múltiplos treinos. A comparação de métodos explicita quantos treinos foram feitos e quais métodos usam rótulos. As ablações mostram resultados de validação e a decisão registrada, sem usar o teste para escolher a configuração.
+
+O seletor de limiar consulta `thresholds.csv`: não roda otimização e não altera o ranking da fila. As contagens da matriz de confusão são recuperadas a partir da sensibilidade, especificidade e dos totais reais do teste. A localização é apresentada como acerto menos acaso da configuração, pois restringir o mapa aos pulmões também aumenta a chance de acertar uma caixa sem informação útil.
+
+Ao iniciar ou construir o front, `scripts/model-catalog.mjs` gera `public/data/models.json` diretamente de `models/*/metadata.json` e dos relatórios correspondentes. A página não depende de valores de AUC digitados no JSX. Os metadados da mesma execução completam campos descritivos ausentes em exports antigos; a interface não recalcula imagens nem scores. O catálogo completo pode ser baixado na própria página.
 
 ## 9. O que foi melhorado na interface?
 

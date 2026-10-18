@@ -7,6 +7,8 @@ import InsideTab from "@/components/inside/InsideTab";
 import QueueTab from "@/components/queue/QueueTab";
 import Icon from "@/components/Icon";
 import LearnTab from "@/components/learn/LearnTab";
+import ModelsTab from "@/components/models/ModelsTab";
+import type { ModelCatalog } from "@/lib/models";
 import type { VaeData } from "@/lib/types";
 
 const TABS = [
@@ -35,6 +37,13 @@ const TABS = [
       "Explore a geração de imagens, o espaço latente e o cálculo do score de anomalia.",
   },
   {
+    key: "models",
+    label: "Modelos e métricas",
+    icon: "pulse",
+    title: "Modelos e métricas",
+    description: "Acompanhe a evolução dos modelos, compare métodos e entenda o que cada métrica permite concluir.",
+  },
+  {
     key: "game",
     label: "Você × VAE",
     icon: "spark",
@@ -45,7 +54,7 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
-export default function Demo({ data }: { data: VaeData }) {
+export default function Demo({ data, catalog }: { data: VaeData; catalog: ModelCatalog }) {
   const [tab, setTab] = useState<TabKey>("learn");
 
   useEffect(() => {
@@ -153,7 +162,7 @@ export default function Demo({ data }: { data: VaeData }) {
           </div>
         </header>
 
-        {/* As três abas ficam montadas: trocar de aba não perde o estado de cada uma. */}
+        {/* Trocar de aba não perde o estado de cada experiência. */}
         <main id="workspace">
           <div className="workspace-intro">
             <div>
@@ -164,7 +173,7 @@ export default function Demo({ data }: { data: VaeData }) {
               <p className="intro-description">{current.description}</p>
             </div>
             <span className="research-badge">
-              <Icon name="pulse" size={16} /> Exames reais · conjunto de teste
+              <Icon name="pulse" size={16} /> {tab === "models" ? "Relatórios reais · validação e teste" : "Exames reais · conjunto de teste"}
             </span>
           </div>
           <section
@@ -196,6 +205,16 @@ export default function Demo({ data }: { data: VaeData }) {
             tabIndex={0}
           >
             <InsideTab data={data} />
+          </section>
+          <section
+            id="panel-models"
+            aria-labelledby="tab-models"
+            hidden={tab !== "models"}
+            className={`tab ${tab === "models" ? "active" : ""}`}
+            role="tabpanel"
+            tabIndex={0}
+          >
+            <ModelsTab catalog={catalog} activeRun={data.runs[data.main].model.run} />
           </section>
           <section
             id="panel-game"

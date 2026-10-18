@@ -305,6 +305,8 @@ export default function LearnTab({
                 threshold={run.model.threshold}
                 imageSize={run.model.image_size}
                 originalSize={run.model.original_image_size}
+                normalized={run.model.normalize}
+                lungMask={run.model.lung_mask}
               />
               <details className="technical-note">
                 <summary>Por que suavizar antes de medir o erro?</summary>

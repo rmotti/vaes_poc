@@ -32,6 +32,8 @@ export interface ModelInfo {
   epochs?: number;
   version?: string;
   threshold_rule?: string;
+  normalize?: boolean;
+  lung_mask?: boolean;
   test?: {
     roc_auc: number;
     sensitivity: number;

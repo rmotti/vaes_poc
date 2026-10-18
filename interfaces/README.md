@@ -1,13 +1,14 @@
 # Interfaces — demo da PoC
 
-Experiência em Next.js (React + TypeScript) com quatro áreas:
+Experiência em Next.js (React + TypeScript) com cinco áreas:
 
 1. **Entenda o VAE** — percurso de cinco etapas: problema, arquitetura, distribuição latente, score e aplicação na fila. Inclui a ilustração interativa da reparametrização e um exemplo real de reconstrução.
 2. **Fila de triagem** — comparação simultânea da chegada e do ranking do VAE, lista de trabalho e análise de cada exame. O diálogo de análise apresenta original, reconstrução e mapa lado a lado, com fórmula e explicação do score; a imagem ampliada tem zoom e navegação por teclado.
 3. **Por dentro do VAE** — gerador de raios-X a partir do código *z*, mapa do espaço latente, efeito da suavização do score (σ) e interpolação entre exames.
-4. **Você × VAE** — a plateia ordena 8 exames por prioridade e compara com o VAE e com o laudo.
+4. **Modelos e métricas** — evolução v1/v2/v3, comparação com baselines, limiares e matriz de confusão, localização acima do acaso e decisão das ablações na validação. PA e AP + PA são populações separadas.
+5. **Você × VAE** — a plateia ordena 8 exames por prioridade e compara com o VAE e com o laudo.
 
-Os exames são reais: dados do conjunto de teste do RSNA, com scores, reconstruções e mapas pré-calculados pelos modelos da v2. O modelo principal é o treinado só com PA (`rsna_pa_v2`); o botão **AP + PA** da fila troca para o modelo treinado com as duas incidências (`rsna_ap_pa_v2`), que mostra o atalho da incidência. O gerador mexe um eixo por vez, consultando sprites exportados. A distribuição interativa do percurso é uma ilustração matemática explicitamente identificada, sem representar o código de um exame. O desafio é local, sem votação em tempo real.
+Os exames são reais: dados do conjunto de teste do RSNA, com scores, reconstruções e mapas pré-calculados pelos modelos da v3. O modelo principal é o treinado só com PA (`rsna_pa_v3`); o botão **AP + PA** da fila troca para o modelo treinado com as duas incidências (`rsna_ap_pa_v3`), que mostra o atalho da incidência. O gerador mexe um eixo por vez, consultando sprites exportados. A distribuição interativa do percurso é uma ilustração matemática explicitamente identificada, sem representar o código de um exame. O desafio é local, sem votação em tempo real.
 
 A fila tem busca por código, filtro de alertas, simulação com pausa/continuação e navegação entre exames. As caixas das anotações só aparecem quando os laudos estão revelados. No celular, selecionar um exame abre a imagem num diálogo dedicado. Setas esquerda/direita navegam quando o foco está no visualizador ou diálogo; no quadro com zoom, elas rolam a imagem. Escape fecha o diálogo e restaura o foco ao controle que o abriu. O zoom amplia os pixels existentes, sem aumentar a resolução.
 
@@ -33,7 +34,7 @@ npm run validate:data # contrato da exportação e existência dos arquivos refe
 npm run test:data  # testes do contrato, incluindo parâmetros e contagens diferentes
 ```
 
-O percurso é a entrada padrão em `/`. Cada área tem um endereço próprio: `/#learn`, `/#queue`, `/#inside` e `/#game`.
+O percurso é a entrada padrão em `/`. Cada área tem um endereço próprio: `/#learn`, `/#queue`, `/#inside`, `/#models` e `/#game`.
 
 ## Organização
 
@@ -44,6 +45,8 @@ O percurso é a entrada padrão em `/`. Cada área tem um endereço próprio: `/
 - `tests/demo.spec.ts` e `tests/experience.spec.ts`: fluxos de busca, simulação, modelos, laudos, navegação, jogo, aprendizado, comparação, zoom e layout.
 - `tests/simulation.spec.ts`: velocidade, chegada manual, acompanhamento, modo apresentação e alinhamento da bancada operacional.
 - `scripts/data-contract.mjs`: contrato da exportação, sem scores, quantidades ou versão fixos.
+- `scripts/model-catalog.mjs`: extrai metadados, métricas, métodos e limiares de `models/` e `reports/` para `public/data/models.json`. Descobre versões `rsna_pa[_vN]` e `rsna_ap_pa[_vN]`, sem incluir execuções de ablação como modelos finais. Lê também a tabela de decisão das ablações. O catálogo é versionado para inspeção e download dos números exibidos.
+- `components/models/`, `lib/models.ts`, `app/models.css` e `tests/models.spec.ts`: comparação, tipos, estilos e verificação da nova seção.
 
 ## Atualizar os resultados do modelo
 
@@ -58,13 +61,13 @@ npm run build
 npm run test:ui
 ```
 
-`dev` e `build` validam os dados automaticamente antes de iniciar. A validação confere tipos, scores finitos, métricas em escala de 0 a 1, alertas coerentes com o limiar, códigos únicos, dimensão latente versus sprites e os arquivos referenciados. Ela não substitui a avaliação experimental do novo modelo.
+`dev` e `build` regeneram o catálogo de comparação e validam os dados antes de iniciar. Use `npm run prepare:models` para regenerar apenas `models.json`. A validação confere tipos, scores finitos, métricas em escala de 0 a 1, alertas coerentes com o limiar, códigos únicos, dimensão latente versus sprites e os arquivos referenciados. Os testes também confrontam a demo com os relatórios (execução, σ, limiar e tamanho do teste). Isso não substitui a avaliação experimental do modelo.
 
-As próximas exportações incluem `image_size`, `original_image_size` e, quando presentes nos metadados da execução, `version`, `epochs` e `threshold_rule`. Exportações anteriores continuam aceitas. Campos ausentes aparecem como não informados; a interface não assume uma versão ou resolução antiga. Execução e data da exportação ficam visíveis na fila.
+As próximas exportações incluem `image_size`, `original_image_size` e, quando presentes nos metadados, `version`, `epochs`, `threshold_rule`, `normalize` e `lung_mask`. Quando a exportação antiga não tem esses campos descritivos, a página pode completá-los com os metadados da mesma execução presentes no catálogo; scores e imagens não são recalculados. Um limiar divergente interrompe o build. Execução e data da exportação ficam visíveis na fila.
 
 ## Publicar na Vercel
 
-Importe o repositório na Vercel com **Root Directory = `interfaces`** e **Application Preset = Next.js**. Os comandos de instalação e de build ficam no padrão.
+Importe o repositório na Vercel com **Root Directory = `interfaces`** e **Application Preset = Next.js**. O build precisa também das pastas `reports/` e `models/` na raiz do repositório para extrair a comparação: inclua os arquivos externos ao Root Directory no checkout disponibilizado ao build. Não é necessário disponibilizar pesos, DICOMs, cache de imagens ou Python para construir o site. Os comandos de instalação e de build ficam no padrão.
 
 ## Dados
 

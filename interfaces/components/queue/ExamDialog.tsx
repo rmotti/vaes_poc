@@ -47,6 +47,8 @@ export default function ExamDialog({
   threshold,
   imageSize,
   originalSize,
+  normalized,
+  lungMask,
   position,
   total,
   arrivalPosition,
@@ -63,6 +65,8 @@ export default function ExamDialog({
   threshold: number;
   imageSize?: number;
   originalSize?: number;
+  normalized?: boolean;
+  lungMask?: boolean;
   position: number;
   total: number;
   arrivalPosition: number;
@@ -171,6 +175,8 @@ export default function ExamDialog({
             threshold={threshold}
             imageSize={imageSize}
             originalSize={originalSize}
+            normalized={normalized}
+            lungMask={lungMask}
           />
         ) : (
           <ZoomImage key={exam.id} exam={exam} reveal={reveal} />

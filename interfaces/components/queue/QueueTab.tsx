@@ -520,6 +520,8 @@ export default function QueueTab({ data }: { data: VaeData }) {
           threshold={run.model.threshold}
           imageSize={run.model.image_size}
           originalSize={run.model.original_image_size}
+          normalized={run.model.normalize}
+          lungMask={run.model.lung_mask}
           position={selectedIndex + 1}
           total={shown.length}
           arrivalPosition={

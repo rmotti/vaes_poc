@@ -19,6 +19,8 @@ def test_model_info_exports_parameters_from_the_trained_run(tmp_path):
         "version": "future",
         "epochs": 12,
         "threshold_rule": "regra da execução futura",
+        "normalize": True,
+        "lung_mask": True,
     }
     run.splits = SimpleNamespace(y_test=[0, 1])
 
@@ -30,6 +32,8 @@ def test_model_info_exports_parameters_from_the_trained_run(tmp_path):
     assert info["version"] == "future"
     assert info["threshold_rule"] == run.meta["threshold_rule"]
     assert info["n_test"] == 2
+    assert info["normalize"] is True
+    assert info["lung_mask"] is True
 
 
 def test_sample_exams_keeps_view_share_of_each_class():

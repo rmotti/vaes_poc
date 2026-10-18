@@ -184,7 +184,7 @@ class RunExport:
             "original_image_size": ORIGINAL_SIZE,
             **{
                 key: self.meta[key]
-                for key in ("version", "epochs", "threshold_rule")
+                for key in ("version", "epochs", "threshold_rule", "normalize", "lung_mask")
                 if key in self.meta
             },
         }
