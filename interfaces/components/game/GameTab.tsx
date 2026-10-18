@@ -1,0 +1,115 @@
+"use client";
+
+import { useState } from "react";
+
+import FakeQr from "@/components/game/FakeQr";
+import LabelTag from "@/components/LabelTag";
+import { byScore, fmtScore } from "@/lib/format";
+import type { Exam } from "@/lib/types";
+
+/** A plateia ordena os exames por prioridade e compara com o VAE e com o laudo. */
+export default function GameTab({ exams }: { exams: Exam[] }) {
+  const [picks, setPicks] = useState<string[]>([]);
+  const [revealed, setRevealed] = useState(false);
+
+  function pick(id: string) {
+    if (revealed) return;
+    setPicks((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
+  }
+
+  function reset() {
+    setPicks([]);
+    setRevealed(false);
+  }
+
+  return (
+    <div className="game-layout">
+      <div className="panel">
+        <div className="panel-head">
+          <div>
+            <h2>Quem você laudaria primeiro?</h2>
+            <p className="sub">
+              Clique nos {exams.length} exames na ordem de prioridade (1 = mais urgente). Depois compare com o VAE e
+              com o laudo.
+            </p>
+          </div>
+          <div className="controls">
+            <button className="btn" onClick={reset}>
+              Limpar
+            </button>
+            <button className="btn primary" onClick={() => setRevealed(true)} disabled={picks.length !== exams.length}>
+              Revelar
+            </button>
+          </div>
+        </div>
+        <div className="game-grid">
+          {exams.map((exam) => {
+            const pos = picks.indexOf(exam.id);
+            return (
+              <button
+                key={exam.id}
+                className={`game-card ${pos >= 0 ? "picked" : ""} ${revealed ? "revealed" : ""}`}
+                onClick={() => pick(exam.id)}
+              >
+                <img src={exam.img} alt={`Exame ${exam.id}`} />
+                <span className="order">{pos >= 0 ? pos + 1 : ""}</span>
+                <span className="reveal">
+                  <LabelTag label={exam.label} />
+                  <span>
+                    VAE: <b>{fmtScore(exam.score)}</b>
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <aside className="panel game-side">
+        <h3>Na apresentação</h3>
+        <FakeQr />
+        <p className="qr-note">QR ilustrativo</p>
+        <p>A turma escaneia o QR code e vota pelo celular. O placar mostra, ao vivo, o ranking da turma, o do VAE e o laudo.</p>
+        {revealed && <Results exams={exams} picks={picks} />}
+      </aside>
+    </div>
+  );
+}
+
+function Results({ exams, picks }: { exams: Exam[]; picks: string[] }) {
+  const byId = Object.fromEntries(exams.map((e) => [e.id, e]));
+  const yours = picks.map((id) => byId[id]);
+  const vae = byScore(exams);
+  const nPos = exams.filter((e) => e.label === "opacidade").length;
+  const hits = (list: Exam[]) => list.slice(0, nPos).filter((e) => e.label === "opacidade").length;
+  const list = (items: Exam[]) => (
+    <ol>
+      {items.map((e) => (
+        <li key={e.id} className={e.label}>
+          {e.id} · {e.label}
+        </li>
+      ))}
+    </ol>
+  );
+
+  return (
+    <div className="results">
+      <h4>Opacidades nas {nPos} primeiras posições</h4>
+      <div className="score-line">
+        <span>Você</span>
+        <b>
+          {hits(yours)} de {nPos}
+        </b>
+      </div>
+      <div className="score-line">
+        <span>VAE</span>
+        <b>
+          {hits(vae)} de {nPos}
+        </b>
+      </div>
+      <div className="order-lists">
+        <div>Sua ordem{list(yours)}</div>
+        <div>Ordem do VAE{list(vae)}</div>
+      </div>
+    </div>
+  );
+}
