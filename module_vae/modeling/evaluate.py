@@ -5,6 +5,11 @@ Além das métricas do notebook, as caixas e as classes do RSNA permitem três a
 - outras anomalias: o VAE sinaliza exames anormais que não são pneumonia?
 - localização: o mapa de calor aponta a lesão marcada pelo radiologista?
 - incidência: o score mede a doença ou só a diferença entre exames AP e PA?
+
+A partir da v2, também o topo da lista ordenada (precision@k e recall@k) e a AUC por
+equipamento (PixelSpacing). Localização, topo da lista e equipamento são calculados na
+validação e no teste: as métricas de validação servem para comparar configurações sem
+olhar o teste.
 """
 
 from loguru import logger
@@ -16,7 +21,11 @@ import torch
 
 
 def metrics_at_threshold(y: np.ndarray, score: np.ndarray, threshold: float) -> dict:
-    """Sensibilidade, especificidade, precisão e matriz de confusão em um limiar."""
+    """Sensibilidade, especificidade, precisão, F1, acurácia e matriz de confusão em um limiar.
+
+    Com threshold = inf, ninguém passa do limiar: é o "modelo" que diz "normal" para
+    todos, a referência que mostra por que a acurácia engana com classes desbalanceadas.
+    """
     pred = (score >= threshold).astype(int)
     tn, fp, fn, tp = confusion_matrix(y, pred, labels=[0, 1]).ravel()
 
@@ -24,6 +33,8 @@ def metrics_at_threshold(y: np.ndarray, score: np.ndarray, threshold: float) -> 
         "sensitivity": tp / (tp + fn),
         "specificity": tn / (tn + fp),
         "precision": tp / max(tp + fp, 1),
+        "f1": 2 * tp / max(2 * tp + fp + fn, 1),
+        "accuracy": (tp + tn) / len(y),
         "confusion_matrix": {"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)},
     }
 
@@ -41,10 +52,10 @@ def evaluate_model(y_test: np.ndarray, score_test: np.ndarray, threshold: float)
         "average_precision": float(average_precision_score(y_test, score_test)),
         "threshold": threshold,
         **metrics_at_threshold(y_test, score_test, threshold),
+        "accuracy_all_normal": float((y_test == 0).mean()),
     }
-    results["sensitivity"] = float(results["sensitivity"])
-    results["specificity"] = float(results["specificity"])
-    results["precision"] = float(results["precision"])
+    for key in ["sensitivity", "specificity", "precision", "f1", "accuracy"]:
+        results[key] = float(results[key])
 
     logger.info("=" * 60)
     logger.success("AVALIAÇÃO NO TESTE")
@@ -53,6 +64,11 @@ def evaluate_model(y_test: np.ndarray, score_test: np.ndarray, threshold: float)
     logger.info(f"Sensibilidade: {results['sensitivity']:.3f}")
     logger.info(f"Especificidade: {results['specificity']:.3f}")
     logger.info(f"Precisão (VPP): {results['precision']:.3f}")
+    logger.info(f"F1: {results['f1']:.3f}")
+    logger.info(
+        f"Acurácia: {results['accuracy']:.3f} "
+        f'("normal" para todos: {results["accuracy_all_normal"]:.3f})'
+    )
     logger.info(f"Matriz de confusão: {results['confusion_matrix']}")
 
     return results
@@ -65,29 +81,75 @@ def compare_thresholds(
     y_test: np.ndarray,
     score_test: np.ndarray,
 ) -> pd.DataFrame:
-    """Compara a sensibilidade e a especificidade de vários limiares na validação e no teste.
+    """Compara as métricas de vários limiares na validação e no teste.
 
     Se a especificidade do teste ficar bem abaixo da validação, o "normal" mudou entre os
-    conjuntos (Seção 9.3 do notebook) e o limiar precisaria ser recalibrado.
+    conjuntos (Seção 9.3 do notebook) e o limiar precisaria ser recalibrado. A última
+    linha é a referência "normal para todos" (limiar infinito).
     """
+    columns = ["sensitivity", "specificity", "precision", "f1", "accuracy"]
     rows = []
-    for name, threshold in thresholds.items():
+    for name, threshold in {**thresholds, "normal para todos (referência)": np.inf}.items():
         for split, y, score in [("val", y_val, score_val), ("test", y_test, score_test)]:
             m = metrics_at_threshold(y, score, threshold)
-            rows.append(
-                {
-                    "threshold": name,
-                    "split": split,
-                    "sensitivity": m["sensitivity"],
-                    "specificity": m["specificity"],
-                    "precision": m["precision"],
-                }
-            )
+            rows.append({"threshold": name, "split": split, **{c: m[c] for c in columns}})
 
     table = pd.DataFrame(rows).set_index(["threshold", "split"])
     logger.info(f"Limiares de decisão:\n{table.round(3).to_string()}")
 
     return table
+
+
+def ranking_at_k(
+    y: np.ndarray, score: np.ndarray, ks: tuple[int, ...] = (10, 25, 50, 100)
+) -> dict:
+    """Precision@k e recall@k: o que há entre os k exames com maior score?
+
+    - precision@k: fração de positivos entre os k primeiros (acaso: a proporção de
+      positivos no conjunto, guardada em "prevalence").
+    - recall@k: fração de todos os positivos do conjunto que estão entre os k primeiros.
+
+    Diferente da fila simulada, usa o conjunto inteiro como uma única lista, com a
+    prevalência do próprio conjunto.
+    """
+    top = y[np.argsort(-score, kind="stable")]
+    results = {"prevalence": float(y.mean())}
+    for k in ks:
+        results[f"precision_at_{k}"] = float(top[:k].mean())
+        results[f"recall_at_{k}"] = float(top[:k].sum() / max(y.sum(), 1))
+
+    logger.info(
+        "Topo da lista: "
+        + ", ".join(f"P@{k} {results[f'precision_at_{k}']:.2f}" for k in ks)
+        + f" (acaso: {results['prevalence']:.2f})"
+    )
+    return results
+
+
+def evaluate_equipment(
+    y: np.ndarray, score: np.ndarray, equipment: np.ndarray, min_positives: int = 10
+) -> dict:
+    """AUC dentro de cada equipamento (PixelSpacing).
+
+    Equipamento, brilho e incidência andam juntos no RSNA (docs/06-eda-rsna.md, pergunta
+    5). Se a AUC variar muito entre equipamentos, parte do score mede a aquisição. Grupos
+    com menos de min_positives positivos (ou sem normais) não têm AUC confiável e ficam só
+    com as contagens.
+
+    Returns:
+        dict: {equipamento: {"n", "n_positive", "roc_auc"}}.
+    """
+    results = {}
+    for group in np.unique(equipment):
+        mask = equipment == group
+        n_positive = int(y[mask].sum())
+        results[group] = {"n": int(mask.sum()), "n_positive": n_positive}
+        if n_positive >= min_positives and n_positive < mask.sum():
+            results[group]["roc_auc"] = float(roc_auc_score(y[mask], score[mask]))
+
+    table = pd.DataFrame(results).T
+    logger.info(f"AUC por equipamento (PixelSpacing):\n{table.to_string()}")
+    return results
 
 
 def simulate_queue(
