@@ -96,7 +96,7 @@ predict:
 	$(PYTHON_INTERPRETER) -m module_vae.inference
 
 
-## Export the demo data (interfaces/data) from the trained PA and AP+PA models
+## Export the demo data (interfaces/public/data) from the trained PA and AP+PA models
 .PHONY: export
 export:
 	$(PYTHON_INTERPRETER) -m module_vae.export

@@ -3,16 +3,16 @@
     uv run python -m module_vae.export                      # rsna_pa_v2 e rsna_ap_pa_v2
     uv run python -m module_vae.export --shortcut-run ""    # só o modelo PA
 
-O site é estático e não roda o modelo: scores, reconstruções, mapas de calor, o espaço
-latente e as imagens do gerador são calculados aqui e gravados em interfaces/data, junto
-com o data.js que o app.js lê.
+O site (Next.js, em interfaces/) não roda o modelo: scores, reconstruções, mapas de
+calor, o espaço latente e as imagens do gerador são calculados aqui e gravados em
+interfaces/public/data, junto com o data.json que a página lê.
 
 - O modelo principal (só PA) alimenta as três abas.
 - O modelo com AP e PA (opcional) só alimenta a fila, no botão "AP + PA", para mostrar
   o atalho da incidência.
 
 Todos os exames vêm do conjunto de teste, que não foi usado para escolher nada. As
-imagens são do RSNA: veja interfaces/README.md antes de publicar a pasta.
+imagens são do RSNA: veja a atribuição exigida em interfaces/README.md.
 """
 
 from datetime import date
@@ -39,7 +39,7 @@ from module_vae.modeling.predict import load_model, predict, reconstruct
 from module_vae.modeling.split import DataSplits, load_splits
 from module_vae.plots import HEATMAP_CMAP
 
-OUT_DIR = PROJ_ROOT / "interfaces" / "data"
+OUT_DIR = PROJ_ROOT / "interfaces" / "public" / "data"
 ORIGINAL_SIZE = 512  # resolução do exame original mostrado no site (o modelo usa 128 px)
 QUEUE_SIZE = {0: 16, 1: 4}  # exames normais (0) e com opacidade (1) na fila
 GAME_SIZE = {0: 6, 1: 2}
@@ -106,7 +106,7 @@ class RunExport:
     """Um modelo treinado, o conjunto de teste dele e os scores pré-calculados."""
 
     def __init__(self, run: str, key: str):
-        self.key = key  # pasta em interfaces/data e chave no data.js ("pa", "ap_pa")
+        self.key = key  # pasta em public/data e chave no data.json ("pa", "ap_pa")
         self.paths = RunPaths(run)
         self.model, self.meta = load_model(self.paths.model, self.paths.metadata)
         self.size = self.meta["image_size"]
@@ -128,11 +128,11 @@ class RunExport:
         (self.dir / "exams").mkdir(parents=True, exist_ok=True)
 
     def url(self, name: str) -> str:
-        """Caminho de um arquivo desta execução, relativo ao index.html."""
-        return f"data/{self.key}/{name}"
+        """Endereço de um arquivo desta execução no site (public/ é servida na raiz)."""
+        return f"/data/{self.key}/{name}"
 
     def exam(self, i: int, prefix: str = "EX-") -> dict:
-        """Grava as imagens de um exame de teste e devolve o registro dele no data.js."""
+        """Grava as imagens de um exame de teste e devolve o registro dele no data.json."""
         exam_id = f"{prefix}{i:04d}"
         pid = self.splits.patient_ids_test[i]
         original, _ = read_dicom(RSNA_DIR / "stage_2_train_images" / f"{pid}.dcm", ORIGINAL_SIZE)
@@ -176,9 +176,16 @@ class RunExport:
                 "roc_auc": round(metrics["roc_auc"], 3),
                 "sensitivity": round(metrics["sensitivity"], 3),
                 "specificity": round(metrics["specificity"], 3),
-                "auc_by_view": {k[-2:]: round(v, 3) for k, v in metrics["views"].items()},
+                "auc_by_view": {
+                    v: round(metrics["views"][f"roc_auc_{v}"], 3) for v in self.meta["views"]
+                },
                 "queue_simulation": metrics["queue_simulation"],
             }
+            # Com AP e PA: o quanto o score separa AP de PA entre os normais (o atalho)
+            if "roc_auc_ap_vs_pa_normals" in metrics["views"]:
+                info["test"]["auc_ap_vs_pa_normals"] = round(
+                    metrics["views"]["roc_auc_ap_vs_pa_normals"], 3
+                )
         else:
             logger.warning(f"{metrics_path} ainda não existe: o site fica sem as métricas")
         return info
@@ -333,8 +340,7 @@ def main(
         else:
             logger.warning(f"{shortcut_run} não tem modelo salvo: o botão AP + PA fica desligado")
 
-    js = "window.VAE_DATA = " + json.dumps(data, ensure_ascii=False) + ";\n"
-    (OUT_DIR / "data.js").write_text(js, encoding="utf-8")
+    (OUT_DIR / "data.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
     for key, block in data["runs"].items():
         q = block["queue"]
