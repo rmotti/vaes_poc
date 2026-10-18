@@ -5,6 +5,9 @@
 PROJECT_NAME = vaes_poc
 PYTHON_VERSION = 3.12
 PYTHON_INTERPRETER = uv run python
+# Versão dos resultados (pastas models/rsna_pa_<VERSION>...) e nome da execução no MLflow
+VERSION ?= v2
+LABEL ?= manual
 
 #################################################################################
 # COMMANDS                                                                      #
@@ -71,19 +74,20 @@ data: requirements
 ## Full pipeline on PA exams: train -> calibrate -> evaluate -> compare
 .PHONY: train
 train:
-	$(PYTHON_INTERPRETER) -m module_vae.main
+	$(PYTHON_INTERPRETER) -m module_vae.main --version $(VERSION) --label $(LABEL)
 
 
 ## Same pipeline with AP and PA exams, to expose the AP/PA shortcut
 .PHONY: train_ap_pa
 train_ap_pa:
-	$(PYTHON_INTERPRETER) -m module_vae.main --views AP,PA
+	$(PYTHON_INTERPRETER) -m module_vae.main --views AP,PA --version $(VERSION) --label $(LABEL)
 
 
-## Quick check of the pipeline (2 epochs, 1 seed, no baselines)
+## Quick check of the pipeline (2 epochs, 1 seed, no baselines), saved as version "quick"
 .PHONY: quick
 quick:
-	$(PYTHON_INTERPRETER) -m module_vae.main --epochs 2 --n-seeds 1 --no-baselines
+	$(PYTHON_INTERPRETER) -m module_vae.main --epochs 2 --n-seeds 1 --no-baselines \
+		--version quick --overwrite --label quick
 
 
 ## Score test exams with the saved model

@@ -6,6 +6,10 @@ uv run python -m module_vae.main --epochs 2 --n-seeds 1 --no-baselines   # teste
 
 Cada execução é registrada no MLflow (parâmetros, curvas de treino, métricas e artefatos);
 use --label para dar um nome a ela, por exemplo --label v2-linha-de-base.
+
+Os resultados vão para pastas da versão (--version, padrão em config.VERSION): por exemplo
+models/rsna_pa_v2 e reports/rsna_pa_v2. O pipeline não grava numa pasta que já existe,
+a não ser com --overwrite; as pastas da v1 (rsna_pa, rsna_ap_pa) ficam protegidas.
 """
 
 import json
@@ -15,7 +19,7 @@ from loguru import logger
 import mlflow
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 import torch
 import typer
 
@@ -28,21 +32,26 @@ from module_vae.config import (
     KL_WARMUP_EPOCHS,
     LATENT_DIM,
     LEARNING_RATE,
+    MAX_VALID_AGE,
+    MIN_AGE,
     SEEDS,
     THRESHOLD_PERCENTILE,
+    VERSION,
     RunPaths,
     run_name,
 )
-from module_vae.features import anomaly_score
+from module_vae.features import anomaly_map, anomaly_score
 from module_vae.modeling.architecture import VAE, describe_architecture
 from module_vae.modeling.baselines import compare_methods
 from module_vae.modeling.calibration import calibrate_threshold, select_sigma, youden_threshold
 from module_vae.modeling.evaluate import (
     compare_thresholds,
+    evaluate_equipment,
     evaluate_localization,
     evaluate_model,
     evaluate_other_anomalies,
     evaluate_views,
+    ranking_at_k,
     simulate_queue,
 )
 from module_vae.modeling.predict import predict, reconstruct
@@ -78,11 +87,30 @@ def main(
     label: Annotated[
         str, typer.Option(help="Nome da execução no MLflow, por exemplo v2-linha-de-base.")
     ] = "manual",
+    version: Annotated[
+        str, typer.Option(help="Versão dos resultados: define as pastas (rsna_pa_v2...).")
+    ] = VERSION,
+    hygiene: Annotated[
+        bool, typer.Option(help="Tira duplicata, idades inválidas e menores de 18.")
+    ] = True,
+    overwrite: Annotated[
+        bool, typer.Option(help="Permite gravar por cima de uma versão que já existe.")
+    ] = False,
 ):
     view_list = sorted(v.strip().upper() for v in views.split(","))
-    paths = RunPaths(run_name(view_list))
+    paths = RunPaths(run_name(view_list, version))
+    if paths.exists and not overwrite:
+        logger.error(
+            f"A versão {version} já tem resultados em {paths.reports}. Use outra --version "
+            "ou --overwrite (as pastas da v1 nunca devem ser sobrescritas)."
+        )
+        raise typer.Exit(1)
     seeds = SEEDS[:n_seeds]
     params = {
+        "version": version,
+        "hygiene": hygiene,
+        "min_age": MIN_AGE if hygiene else None,
+        "max_valid_age": MAX_VALID_AGE if hygiene else None,
         "views": ",".join(view_list),
         "image_size": image_size,
         "latent_dim": latent_dim,
@@ -95,8 +123,12 @@ def main(
         "baselines": baselines,
         "threshold_percentile": THRESHOLD_PERCENTILE,
     }
-    with tracked_run(paths.name, label, params):
-        run_pipeline(paths, view_list, image_size, latent_dim, epochs, seeds, baselines)
+    # O experimento no MLflow reúne todas as versões (rsna_pa ou rsna_ap_pa), para
+    # compará-las lado a lado; cada versão tem as próprias pastas.
+    with tracked_run(run_name(view_list), label, params, tags={"version": version}):
+        run_pipeline(
+            paths, view_list, image_size, latent_dim, epochs, seeds, baselines, hygiene, version
+        )
 
 
 def run_pipeline(
@@ -107,6 +139,8 @@ def run_pipeline(
     epochs: int,
     seeds: list[int],
     baselines: bool,
+    hygiene: bool = True,
+    version: str = VERSION,
 ) -> None:
     """Executa o pipeline dentro de uma execução já aberta no MLflow."""
     positive = "opacidade"
@@ -118,17 +152,25 @@ def run_pipeline(
     # DADOS
     # =============================================
 
-    splits = load_splits(image_size, view_list)
+    splits = load_splits(image_size, view_list, hygiene=hygiene)
     y_test = splits.y_test
     mlflow.log_params(
         {
             "n_train_normal": len(splits.x_train_normal),
             "n_val": len(splits.y_val),
+            "n_val_positive": int(splits.y_val.sum()),
             "n_test": len(y_test),
             "n_test_positive": int(y_test.sum()),
             "n_test_other": len(splits.x_test_other),
+            **{
+                f"n_excluded_{split}_{reason.replace(' ', '_')}": int(n)
+                for split, row in splits.excluded.iterrows()
+                for reason, n in row.items()
+            },
         }
     )
+    paths.reports.mkdir(parents=True, exist_ok=True)
+    splits.excluded.to_csv(paths.reports / "excluded.csv", index_label="split")
 
     # =============================================
     # TREINO DO VAE (somente exames normais)
@@ -146,7 +188,6 @@ def run_pipeline(
     )
     plot_training_curves(history, KL_WARMUP_EPOCHS, paths.figures / "training_curves.png")
     log_history(history)
-    paths.reports.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(history, index=pd.RangeIndex(1, epochs + 1, name="epoch")).to_csv(
         paths.reports / "history.csv"
     )
@@ -169,6 +210,24 @@ def run_pipeline(
     mlflow.log_params({"sigma": sigma, "threshold": threshold})
     mlflow.log_metric("val_auc", auc_val_by_sigma[sigma])
     mlflow.log_metrics({f"val_auc_sigma_{s:g}": auc for s, auc in auc_val_by_sigma.items()})
+
+    # Métricas de validação para comparar configurações (ablações) sem olhar o teste
+    maps_val = anomaly_map(splits.x_val, rec_val, sigma)
+    val_metrics = {
+        "average_precision": float(average_precision_score(splits.y_val, score_val)),
+        "ranking": ranking_at_k(splits.y_val, score_val),
+        "equipment": evaluate_equipment(splits.y_val, score_val, splits.equipment_val),
+        "localization": evaluate_localization(maps_val, splits.boxes_val, split="validação"),
+    }
+    mlflow.log_metrics(flatten(val_metrics, "val"))
+    pd.DataFrame(
+        {
+            "label": splits.y_val,
+            "view": splits.views_val,
+            "equipment": splits.equipment_val,
+            "anomaly_score": score_val,
+        }
+    ).to_csv(paths.reports / "val_predictions.csv", index_label="val_index")
 
     # =============================================
     # AVALIAÇÃO NO TESTE
@@ -198,6 +257,7 @@ def run_pipeline(
     threshold_table = compare_thresholds(thresholds, splits.y_val, score_val, y_test, score_test)
 
     queue = simulate_queue(y_test, score_test)
+    metrics["ranking"] = ranking_at_k(y_test, score_test)
 
     plot_test_evaluation(y_test, score_test, paths.figures / "test_evaluation.png", positive)
     plot_gain_curve(y_test, score_test, paths.figures / "gain_curve.png", f"{positive}s")
@@ -257,6 +317,8 @@ def run_pipeline(
 
     metrics["localization"] = evaluate_localization(maps_test, splits.boxes_test)
     metrics["views"] = evaluate_views(y_test, score_test, splits.views_test)
+    metrics["equipment"] = evaluate_equipment(y_test, score_test, splits.equipment_test)
+    predictions.insert(0, "equipment", splits.equipment_test)
     predictions.insert(0, "view", splits.views_test)
 
     # =============================================
@@ -266,6 +328,8 @@ def run_pipeline(
     save_model(
         vae,
         metadata={
+            "version": version,
+            "hygiene": hygiene,
             "views": view_list,
             "image_size": image_size,
             "latent_dim": latent_dim,

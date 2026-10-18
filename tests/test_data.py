@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from module_vae.config import run_name
 from module_vae.dataset import exclusion_reasons
 from module_vae.modeling.split import split_rsna
 
@@ -127,3 +128,9 @@ def test_exclusion_reasons():
 
     # fica o de menor patientId (p1); idade 150 é impossível; 10 anos está fora do escopo
     assert reasons.tolist() == ["", "duplicata", "", "idade ausente", "menor de 18"]
+
+
+def test_run_name_keeps_v1_folders_and_adds_version_suffix():
+    assert run_name(["PA"]) == "rsna_pa"
+    assert run_name(["PA"], "v1") == "rsna_pa"
+    assert run_name(["PA", "AP"], "v2") == "rsna_ap_pa_v2"

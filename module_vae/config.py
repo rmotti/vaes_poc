@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from pathlib import Path
 
 from loguru import logger
@@ -17,9 +18,15 @@ MODELS_DIR = PROJ_ROOT / "models"
 REPORTS_DIR = PROJ_ROOT / "reports"
 
 # Rastreamento dos experimentos no MLflow (local e fora do git): parâmetros e métricas em
-# mlflow.db, artefatos (figuras, tabelas, pesos) em mlartifacts/
-MLFLOW_TRACKING_URI = f"sqlite:///{PROJ_ROOT / 'mlflow.db'}"
-MLFLOW_ARTIFACTS_DIR = PROJ_ROOT / "mlartifacts"
+# mlflow.db, artefatos (figuras, tabelas, pesos) em mlartifacts/. As variáveis de ambiente
+# permitem apontar para outro lugar, por exemplo num teste rápido que não deve aparecer
+# junto das execuções de verdade.
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", f"sqlite:///{PROJ_ROOT / 'mlflow.db'}")
+MLFLOW_ARTIFACTS_DIR = Path(os.environ.get("VAE_MLFLOW_ARTIFACTS", PROJ_ROOT / "mlartifacts"))
+
+# Versão dos resultados. Cada versão grava em pastas próprias (models/rsna_pa_v2,
+# reports/rsna_pa_v2...); a v1 ocupa as pastas sem sufixo (models/rsna_pa, reports/rsna_pa).
+VERSION = "v2"
 
 # Resolução das imagens. Os DICOMs do RSNA têm 1024 px; em 64 px (a resolução do
 # notebook) opacidades pequenas somem.
@@ -51,11 +58,16 @@ THRESHOLD_PERCENTILE = 95
 class RunPaths:
     """Onde cada execução do pipeline guarda modelo e relatórios.
 
-    Cada combinação de incidências vira uma pasta própria (models/rsna_pa e
-    reports/rsna_pa, ou rsna_ap_pa), para os resultados não se sobrescreverem.
+    Cada combinação de incidências e versão vira uma pasta própria (models/rsna_pa_v2 e
+    reports/rsna_pa_v2, ou rsna_ap_pa_v2), para os resultados não se sobrescreverem.
     """
 
     name: str
+
+    @property
+    def exists(self) -> bool:
+        """Se a execução já gravou modelo ou relatórios."""
+        return (MODELS_DIR / self.name).exists() or self.reports.exists()
 
     @property
     def model(self) -> Path:
@@ -74,9 +86,14 @@ class RunPaths:
         return REPORTS_DIR / self.name / "figures"
 
 
-def run_name(views: list[str]) -> str:
-    """Nome da execução: "rsna_pa" ou "rsna_ap_pa"."""
-    return "rsna_" + "_".join(sorted(v.lower() for v in views))
+def run_name(views: list[str], version: str | None = None) -> str:
+    """Nome da execução: "rsna_pa" ou "rsna_ap_pa", com o sufixo da versão.
+
+    A v1 (e version=None) não tem sufixo: são as pastas da primeira versão do pipeline e o
+    nome dos experimentos no MLflow, que reúnem todas as versões.
+    """
+    name = "rsna_" + "_".join(sorted(v.lower() for v in views))
+    return name if version in (None, "v1") else f"{name}_{version}"
 
 
 def get_device() -> torch.device:
