@@ -31,7 +31,7 @@ def load_model(
     with open(metadata_path, "r", encoding="utf-8") as file:
         metadata = json.load(file)
 
-    model = VAE(metadata["latent_dim"])
+    model = VAE(metadata["latent_dim"], image_size=metadata["image_size"])
     model.load_state_dict(torch.load(model_path, map_location="cpu"))
     model = model.to(device).eval()
 
@@ -51,7 +51,7 @@ def predict(
 
     Args:
         model (VAE): Modelo treinado.
-        x (torch.Tensor): Exames (N, 1, 64, 64) com pixels em [0, 1].
+        x (torch.Tensor): Exames (N, 1, H, H) com pixels em [0, 1].
         sigma (float): Largura da suavização do resíduo escolhida na validação.
         threshold (float): Limiar de decisão calibrado na validação.
 

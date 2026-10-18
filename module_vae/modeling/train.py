@@ -44,7 +44,7 @@ def train_autoencoder(
     """Treina um VAE (ou, com deterministic=True, um autoencoder comum).
 
     Args:
-        x_train (torch.Tensor): Exames normais de treino (N, 1, 64, 64).
+        x_train (torch.Tensor): Exames normais de treino (N, 1, H, H).
         x_val (torch.Tensor): Exames normais de validação, só para acompanhar o treino.
         seed (int): Semente da inicialização e da ordem dos lotes.
         latent_dim (int): Tamanho do código latente z.
@@ -62,7 +62,7 @@ def train_autoencoder(
             histórico de reconstrução e KL por época, no treino e na validação.
     """
     set_seed(seed)
-    model = VAE(latent_dim, deterministic).to(device)
+    model = VAE(latent_dim, deterministic, image_size=x_train.shape[-1]).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     x_tr, x_vl = x_train.to(device), x_val.to(device)
     history = {"rec_train": [], "kl_train": [], "rec_val": [], "kl_val": []}
@@ -90,12 +90,18 @@ def train_autoencoder(
         history["rec_train"].append(sum_rec / len(x_tr))
         history["kl_train"].append(sum_kl / len(x_tr))
 
+        # Validação em lotes: em 128 px, passar todos os exames de uma vez pesa na memória.
         model.eval()
+        rec_val, kl_val = [], []
         with torch.no_grad():
-            x_rec, mu, logvar = model(x_vl)
-            rec, kl = loss_terms(x_vl, x_rec, mu, logvar)
-        history["rec_val"].append(rec.mean().item())
-        history["kl_val"].append(kl.mean().item())
+            for i in range(0, len(x_vl), 256):
+                x = x_vl[i : i + 256]
+                x_rec, mu, logvar = model(x)
+                rec, kl = loss_terms(x, x_rec, mu, logvar)
+                rec_val.append(rec)
+                kl_val.append(kl)
+        history["rec_val"].append(torch.cat(rec_val).mean().item())
+        history["kl_val"].append(torch.cat(kl_val).mean().item())
 
         if verbose and (epoch + 1) % 10 == 0:
             logger.info(
@@ -120,10 +126,10 @@ def train_supervised_cnn(
 ) -> nn.Module:
     """Treina a CNN supervisionada com normais e pneumonias (referência de "teto")."""
     set_seed(seed)
-    model = create_supervised_cnn().to(device)
+    model = create_supervised_cnn(image_size=x_train.shape[-1]).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    # Compensa o desbalanceamento (há ~3× mais pneumonias que normais no treino)
+    # Compensa o desbalanceamento: cada positivo pesa (nº de normais / nº de positivos)
     pos_weight = torch.tensor(
         [(y_train == 0).sum() / (y_train == 1).sum()], dtype=torch.float32, device=device
     )
