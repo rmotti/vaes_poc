@@ -96,6 +96,16 @@ def plot_training_curves(
     save_figure(fig, path)
 
 
+def plot_lung_mask(mean_image: np.ndarray, mask: np.ndarray, path: Path) -> None:
+    """Máscara dos pulmões (ablação C1) sobre a imagem média dos normais de treino."""
+    fig, ax = plt.subplots(figsize=(3.6, 3.8))
+    ax.imshow(mean_image, cmap="gray", vmin=0, vmax=1)
+    ax.contour(mask, levels=[0.5], colors=[POSITIVE_COLOR], linewidths=1.5)
+    ax.set_title(f"Máscara dos pulmões ({mask.mean():.0%} da imagem)", fontsize=10)
+    ax.axis("off")
+    save_figure(fig, path)
+
+
 def plot_generated_samples(samples: torch.Tensor, path: Path) -> None:
     fig, ax = plt.subplots(figsize=(8, 2.2))
     show_grid(samples, 8, ax, "Raios-X sintéticos: decoder aplicado a z ~ N(0, I)")

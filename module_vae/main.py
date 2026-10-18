@@ -62,11 +62,14 @@ from module_vae.plots import (
     plot_gain_curve,
     plot_generated_samples,
     plot_heatmaps,
+    plot_lung_mask,
     plot_method_comparison,
     plot_sigma_selection,
     plot_test_evaluation,
     plot_training_curves,
 )
+from module_vae.preprocessing import Preprocessing
+from module_vae.preprocessing import lung_mask as build_lung_mask
 from module_vae.tracking import flatten, log_comparison, log_history, tracked_run
 
 app = typer.Typer()
@@ -100,6 +103,15 @@ def main(
         int | None,
         typer.Option(help="Semente do VAE principal (o dos mapas e do modelo salvo)."),
     ] = None,
+    crop_borders: Annotated[
+        bool, typer.Option(help="Ablação A: recorta as molduras pretas.")
+    ] = False,
+    normalize: Annotated[
+        bool, typer.Option(help="Ablação B: estica o brilho de cada imagem (p1–p99).")
+    ] = False,
+    lung_mask: Annotated[
+        bool, typer.Option(help="Ablação C1: score só dentro da máscara média dos pulmões.")
+    ] = False,
 ):
     view_list = sorted(v.strip().upper() for v in views.split(","))
     paths = RunPaths(run_name(view_list, version))
@@ -111,6 +123,7 @@ def main(
         raise typer.Exit(1)
     # A primeira semente é a do VAE principal; as outras só entram na comparação de métodos.
     # Com --seed, ela vem primeiro, para medir a variação entre treinos (mapas, localização).
+    preprocessing = Preprocessing(crop_borders, normalize, lung_mask)
     seeds = SEEDS[:n_seeds] if seed is None else [seed, *[s for s in SEEDS if s != seed]][:n_seeds]
     params = {
         "version": version,
@@ -128,12 +141,22 @@ def main(
         "seeds": ",".join(str(s) for s in seeds),
         "baselines": baselines,
         "threshold_percentile": THRESHOLD_PERCENTILE,
+        **preprocessing.as_dict(),
     }
     # O experimento no MLflow reúne todas as versões (rsna_pa ou rsna_ap_pa), para
     # compará-las lado a lado; cada versão tem as próprias pastas.
     with tracked_run(run_name(view_list), label, params, tags={"version": version}):
         run_pipeline(
-            paths, view_list, image_size, latent_dim, epochs, seeds, baselines, hygiene, version
+            paths,
+            view_list,
+            image_size,
+            latent_dim,
+            epochs,
+            seeds,
+            baselines,
+            hygiene,
+            version,
+            preprocessing,
         )
 
 
@@ -147,8 +170,10 @@ def run_pipeline(
     baselines: bool,
     hygiene: bool = True,
     version: str = VERSION,
+    preprocessing: Preprocessing | None = None,
 ) -> None:
     """Executa o pipeline dentro de uma execução já aberta no MLflow."""
+    preprocessing = preprocessing or Preprocessing()
     positive = "opacidade"
 
     logger.info(f"Execução: {paths.name} | {image_size} px | dispositivo: {DEVICE}")
@@ -158,8 +183,16 @@ def run_pipeline(
     # DADOS
     # =============================================
 
-    splits = load_splits(image_size, view_list, hygiene=hygiene)
+    splits = load_splits(image_size, view_list, hygiene=hygiene, preprocessing=preprocessing)
     y_test = splits.y_test
+
+    # Ablação C1: a máscara sai só dos normais do treino
+    mask = None
+    if preprocessing.lung_mask:
+        mean_image = splits.x_train_normal.mean(0)[0].numpy()
+        mask = torch.from_numpy(build_lung_mask(mean_image))
+        plot_lung_mask(mean_image, mask.numpy(), paths.figures / "lung_mask.png")
+        mlflow.log_param("lung_mask_fraction", round(float(mask.float().mean()), 4))
     mlflow.log_params(
         {
             "n_train_normal": len(splits.x_train_normal),
@@ -210,20 +243,22 @@ def run_pipeline(
     # =============================================
 
     rec_val = reconstruct(vae, splits.x_val)
-    sigma, auc_val_by_sigma = select_sigma(splits.x_val, rec_val, splits.y_val)
-    score_val = anomaly_score(splits.x_val, rec_val, sigma)
+    sigma, auc_val_by_sigma = select_sigma(splits.x_val, rec_val, splits.y_val, mask=mask)
+    score_val = anomaly_score(splits.x_val, rec_val, sigma, mask)
     threshold = calibrate_threshold(score_val, splits.y_val)
     mlflow.log_params({"sigma": sigma, "threshold": threshold})
     mlflow.log_metric("val_auc", auc_val_by_sigma[sigma])
     mlflow.log_metrics({f"val_auc_sigma_{s:g}": auc for s, auc in auc_val_by_sigma.items()})
 
     # Métricas de validação para comparar configurações (ablações) sem olhar o teste
-    maps_val = anomaly_map(splits.x_val, rec_val, sigma)
+    maps_val = anomaly_map(splits.x_val, rec_val, sigma, mask)
     val_metrics = {
         "average_precision": float(average_precision_score(splits.y_val, score_val)),
         "ranking": ranking_at_k(splits.y_val, score_val),
         "equipment": evaluate_equipment(splits.y_val, score_val, splits.equipment_val),
-        "localization": evaluate_localization(maps_val, splits.boxes_val, split="validação"),
+        "localization": evaluate_localization(
+            maps_val, splits.boxes_val, split="validação", lung_mask=mask
+        ),
     }
     mlflow.log_metrics(flatten(val_metrics, "val"))
     pd.DataFrame(
@@ -239,14 +274,14 @@ def run_pipeline(
     # AVALIAÇÃO NO TESTE
     # =============================================
 
-    predictions, rec_test, maps_test = predict(vae, splits.x_test, sigma, threshold)
+    predictions, rec_test, maps_test = predict(vae, splits.x_test, sigma, threshold, mask)
     score_test = predictions["anomaly_score"].to_numpy()
     metrics = evaluate_model(y_test, score_test, threshold)
 
     # A mesma curva de σ no teste (só para a figura) mostra se a escolha generaliza.
     # Com σ = 0, o score é o erro pixel a pixel ingênuo, que funciona mal (Seção 7.2).
     auc_test_by_sigma = {
-        s: roc_auc_score(y_test, anomaly_score(splits.x_test, rec_test, s))
+        s: roc_auc_score(y_test, anomaly_score(splits.x_test, rec_test, s, mask))
         for s in auc_val_by_sigma
     }
     metrics["roc_auc_naive"] = auc_test_by_sigma[0]
@@ -304,7 +339,7 @@ def run_pipeline(
     # OUTRAS ANOMALIAS, LOCALIZAÇÃO E INCIDÊNCIA
     # =============================================
 
-    pred_other, rec_other, maps_other = predict(vae, splits.x_test_other, sigma, threshold)
+    pred_other, rec_other, maps_other = predict(vae, splits.x_test_other, sigma, threshold, mask)
     score_other = pred_other["anomaly_score"].to_numpy()
     metrics["other_anomalies"] = evaluate_other_anomalies(
         score_test[y_test == 0], score_other, threshold
@@ -321,7 +356,7 @@ def run_pipeline(
         labels=np.full(len(score_other), "anormal s/ opacidade"),
     )
 
-    metrics["localization"] = evaluate_localization(maps_test, splits.boxes_test)
+    metrics["localization"] = evaluate_localization(maps_test, splits.boxes_test, lung_mask=mask)
     metrics["views"] = evaluate_views(y_test, score_test, splits.views_test)
     metrics["equipment"] = evaluate_equipment(y_test, score_test, splits.equipment_test)
     predictions.insert(0, "equipment", splits.equipment_test)
@@ -347,10 +382,13 @@ def run_pipeline(
             "threshold_rule": f"percentil {THRESHOLD_PERCENTILE} dos normais da validação",
             "vmax_map": vmax_map,
             "auc_val": auc_val_by_sigma[sigma],
+            **preprocessing.as_dict(),
         },
         model_path=paths.model,
         metadata_path=paths.metadata,
     )
+    if mask is not None:
+        np.save(paths.model.parent / "lung_mask.npy", mask.numpy())
 
     predictions.insert(0, "label", y_test)
     predictions.to_csv(paths.reports / "test_predictions.csv", index_label="test_index")
@@ -361,7 +399,7 @@ def run_pipeline(
     # =============================================
 
     if baselines:
-        comparison = compare_methods(splits, {seeds[0]: vae}, seeds, epochs=epochs)
+        comparison = compare_methods(splits, {seeds[0]: vae}, seeds, epochs=epochs, mask=mask)
         comparison.to_csv(paths.reports / "method_comparison.csv")
         plot_method_comparison(comparison, paths.figures / "method_comparison.png")
         metrics["comparison"] = (
