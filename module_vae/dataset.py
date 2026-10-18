@@ -4,8 +4,13 @@ São 26.684 raios-X de tórax de adultos com rótulos, um por paciente, em DICOM
 Cada exame tem uma de três classes (normal, opacidade pulmonar ou anormal sem opacidade),
 e as opacidades vêm marcadas com caixas. Os DICOMs são lidos uma vez e guardados
 redimensionados em data/processed.
+
+A partir da v2, os metadados de cada exame (idade, sexo e PixelSpacing, que identifica o
+equipamento) vêm dos cabeçalhos dos DICOMs, guardados à parte em rsna_headers.csv. Assim
+o cache das imagens da v1 continua o mesmo.
 """
 
+import hashlib
 from pathlib import Path
 
 import kagglehub
@@ -17,7 +22,7 @@ import pydicom
 from tqdm import tqdm
 import typer
 
-from module_vae.config import IMAGE_SIZE, PROCESSED_DATA_DIR, RSNA_DIR
+from module_vae.config import IMAGE_SIZE, MAX_VALID_AGE, MIN_AGE, PROCESSED_DATA_DIR, RSNA_DIR
 
 RSNA_COMPETITION = "rsna-pneumonia-detection-challenge"
 RSNA_ORIGINAL_SIZE = 1024
@@ -94,6 +99,75 @@ def build_rsna_cache(image_size: int, root: Path = RSNA_DIR) -> Path:
     return path
 
 
+def rsna_headers_path() -> Path:
+    return PROCESSED_DATA_DIR / "rsna_headers.csv"
+
+
+def read_header(path: Path) -> dict:
+    """Idade, sexo e PixelSpacing de um DICOM, sem ler os pixels.
+
+    O PixelSpacing não serve como escala física (a imagem foi reduzida para 1024 px depois
+    de medido), mas cada valor corresponde a um equipamento (docs/06-eda-rsna.md).
+    """
+    ds = pydicom.dcmread(path, stop_before_pixels=True)
+    return {
+        "age": int(ds.PatientAge),
+        "sex": str(ds.PatientSex),
+        "pixel_spacing": round(float(ds.PixelSpacing[0]), 3),
+    }
+
+
+def build_rsna_headers(root: Path = RSNA_DIR) -> Path:
+    """Lê os cabeçalhos dos 26.684 DICOMs de treino e guarda idade, sexo e PixelSpacing."""
+    download_rsna(root)
+    patient_ids = pd.read_csv(root / "stage_2_detailed_class_info.csv")["patientId"].unique()
+
+    rows = [
+        {"patientId": pid, **read_header(root / "stage_2_train_images" / f"{pid}.dcm")}
+        for pid in tqdm(patient_ids, desc="Cabeçalhos DICOM")
+    ]
+
+    path = rsna_headers_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows).to_csv(path, index=False)
+    logger.success(f"Cabeçalhos do RSNA salvos em {path}")
+
+    return path
+
+
+def image_hashes(images: np.ndarray) -> np.ndarray:
+    """Hash dos pixels de cada imagem: imagens idênticas têm o mesmo hash."""
+    return np.array([hashlib.sha1(img.tobytes()).hexdigest() for img in images])
+
+
+def exclusion_reasons(images: np.ndarray, meta: pd.DataFrame) -> np.ndarray:
+    """Motivo para tirar cada exame do escopo da PoC ("" = o exame fica).
+
+    - "duplicata": imagem com pixels idênticos aos de outro exame (o mesmo exame
+      cadastrado com dois patientIds). Fica o de menor patientId.
+    - "idade ausente": idade acima de MAX_VALID_AGE (impossível) ou desconhecida. Sem a
+      idade, não dá para confirmar que é um adulto.
+    - "menor de 18": fora do escopo de adultos.
+
+    Cada exame recebe só o primeiro motivo, nessa ordem.
+
+    Args:
+        images (np.ndarray): Imagens (N, H, W).
+        meta (pd.DataFrame): patientId e age de cada imagem, na mesma ordem.
+    """
+    hashes = pd.Series(image_hashes(images), index=meta.index)
+    first = meta.assign(hash=hashes).sort_values("patientId").drop_duplicates("hash")
+    duplicate = ~meta.index.isin(first.index)
+
+    age = meta["age"].where(meta["age"] <= MAX_VALID_AGE)
+    reasons = np.select(
+        [duplicate, age.isna().to_numpy(), (age < MIN_AGE).to_numpy()],
+        ["duplicata", "idade ausente", f"menor de {MIN_AGE}"],
+        default="",
+    )
+    return reasons
+
+
 def load_rsna(
     image_size: int = IMAGE_SIZE,
     root: Path = RSNA_DIR,
@@ -103,14 +177,19 @@ def load_rsna(
     Returns:
         tuple[np.ndarray, pd.DataFrame, pd.DataFrame]:
             - images: (N, H, W) em uint8;
-            - meta: uma linha por exame, com patientId, label ("normal", "opacity" ou
-              "other") e view ("AP" ou "PA"), na mesma ordem de images;
+            - meta: uma linha por exame, na mesma ordem de images, com patientId, label
+              ("normal", "opacity" ou "other"), view ("AP" ou "PA"), age (idades acima
+              de MAX_VALID_AGE viram ausentes), sex, pixel_spacing (o equipamento) e
+              exclusion (motivo para ficar fora do escopo, "" se fica; ver
+              exclusion_reasons);
             - boxes: caixas das opacidades (patientId, x, y, width, height), já em pixels
               da imagem redimensionada.
     """
     path = rsna_cache_path(image_size)
     if not path.exists():
         build_rsna_cache(image_size, root)
+    if not rsna_headers_path().exists():
+        build_rsna_headers(root)
 
     cache = np.load(path)
     meta = pd.DataFrame(
@@ -120,12 +199,19 @@ def load_rsna(
             "view": cache["views"],
         }
     )
+    headers = pd.read_csv(rsna_headers_path())
+    meta = meta.merge(headers, on="patientId", how="left", validate="one_to_one")
+    meta["exclusion"] = exclusion_reasons(cache["images"], meta)
+    meta["age"] = meta["age"].where(meta["age"] <= MAX_VALID_AGE)
 
     boxes = pd.read_csv(root / "stage_2_train_labels.csv").dropna(subset=["x"])
     scale = image_size / RSNA_ORIGINAL_SIZE
     boxes[["x", "y", "width", "height"]] *= scale
 
     logger.info(f"RSNA carregado: {cache['images'].shape} | {len(boxes)} caixas")
+    logger.info(
+        f"Fora do escopo: {meta['exclusion'].replace('', 'no escopo').value_counts().to_dict()}"
+    )
     return cache["images"], meta, boxes[["patientId", "x", "y", "width", "height"]]
 
 

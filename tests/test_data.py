@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from module_vae.dataset import exclusion_reasons
 from module_vae.modeling.split import split_rsna
 
 CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "processed" / "rsna_128.npz"
@@ -78,3 +79,17 @@ def test_boxes_point_to_opacity_exams():
     splits = split_rsna(images, meta, boxes, views=["AP", "PA"])
 
     assert (splits.y_test[splits.boxes_test["test_index"]] == 1).all()
+
+
+def test_exclusion_reasons():
+    images = np.zeros((5, 4, 4), dtype=np.uint8)
+    images[1] = images[2] = 7  # p1 e p2: o mesmo exame com dois ids
+    images[3], images[4] = 1, 2
+    meta = pd.DataFrame(
+        {"patientId": ["p0", "p2", "p1", "p3", "p4"], "age": [30, 40, 40, 150, 10]}
+    )
+
+    reasons = exclusion_reasons(images, meta)
+
+    # fica o de menor patientId (p1); idade 150 é impossível; 10 anos está fora do escopo
+    assert reasons.tolist() == ["", "duplicata", "", "idade ausente", "menor de 18"]

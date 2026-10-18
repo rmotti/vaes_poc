@@ -25,6 +25,10 @@ MLFLOW_ARTIFACTS_DIR = PROJ_ROOT / "mlartifacts"
 # notebook) opacidades pequenas somem.
 IMAGE_SIZE = 128
 
+# Higiene dos dados (a partir da v2, ver docs/07-higiene-v2.md)
+MIN_AGE = 18  # escopo da PoC: adultos
+MAX_VALID_AGE = 100  # idades acima disso (148 a 155 anos no RSNA) são tratadas como ausentes
+
 # Hiperparâmetros (os mesmos da configuração do notebook)
 LATENT_DIM = 8  # tamanho do código latente z
 BETA = 1.0  # peso do termo KL (β = 1 → VAE clássico)
