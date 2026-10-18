@@ -22,7 +22,7 @@ Em serviços de radiologia com muita demanda, os exames de tórax esperam na fil
 | | |
 |---|---|
 | Tipo | detecção de anomalias sem rótulos (o modelo só conhece a classe "normal") |
-| Entrada | raio-X de tórax (128×128 px no RSNA; 64×64 no notebook) |
+| Entrada | raio-X de tórax frontal (128×128 px) |
 | Saída | score de anomalia, mapa de calor, decisão "revisar com prioridade" ou "dentro do padrão", posição na fila |
 | Métrica técnica | AUC-ROC: o score separa os exames alterados dos normais? |
 | Métrica de produto | posição média de um exame alterado numa fila de 100 exames |

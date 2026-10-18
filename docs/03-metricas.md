@@ -24,7 +24,7 @@ Nos classificadores supervisionados (Olist, CNN), a tarefa treinada e a avaliada
 
 - A loss cai e se estabiliza, com treino e validação próximos: **sem overfitting**.
 - O KL não vai a zero: o espaço latente está sendo usado (**sem colapso do posterior**).
-- **A loss não mede a detecção:** ela é calculada só com normais. Loss menor ≠ detector melhor. No notebook, com latente 32 o modelo reconstrói melhor, mas reconstrói até as anomalias, e a AUC cai.
+- **A loss não mede a detecção:** ela é calculada só com normais. Loss menor ≠ detector melhor: um modelo com latente maior reconstrói melhor, mas pode reconstruir até as anomalias, e aí o resíduo delas some.
 - O score de anomalia é parecido com uma "loss por exame" (erro de reconstrução suavizado), mas é avaliado comparando normais com alterados.
 
 ## Métricas principais: não dependem de limiar

@@ -1,16 +1,16 @@
 # Decisões tomadas e por quê
 
-## Por que trocar o PneumoniaMNIST pelo RSNA
+## Por que o RSNA
 
-O notebook (PneumoniaMNIST) deixou limitações que o próprio texto listava: só crianças de um hospital, só pneumonia testada, mapa de calor sem validação, resolução de 64 px. Candidatos avaliados no Kaggle:
+A PoC precisava de um dataset com adultos, com as lesões marcadas (para validar o mapa de calor), com alterações além da pneumonia (para testar "anomalias nunca vistas") e com resolução maior que 64 px. Candidatos avaliados no Kaggle:
 
 | Dataset | O que acrescentaria | Por que não (ou sim) |
 |---|---|---|
-| **RSNA Pneumonia Detection Challenge** | adultos, caixas nas lesões, classe "anormal sem opacidade" | ✅ escolhido: responde as três perguntas em aberto; é o raio-X de tórax do benchmark BMAD de anomalias médicas |
+| **RSNA Pneumonia Detection Challenge** | adultos, caixas nas lesões, classe "anormal sem opacidade" | ✅ escolhido: atende os três requisitos; é o raio-X de tórax do benchmark BMAD de anomalias médicas |
 | NIH ChestX-ray14 / ChestMNIST | 112 mil exames, 14 achados | rótulos extraídos por NLP (ruidosos); bom para testar "doenças nunca vistas" |
 | VinBigData (VinDr-CXR) | caixas de radiologistas para vários achados | mais esforço; rótulos só no treino da competição |
 | COVID-QU-Ex | máscaras dos pulmões (restringir o score) | junta várias fontes: risco de aprender "qual hospital" |
-| Chest X-Ray Images (Kermany) | a origem do PneumoniaMNIST em resolução cheia | mesmos vieses do notebook |
+| Chest X-Ray Images (Kermany) | pneumonia × normal em resolução cheia | só crianças, de um hospital; sem caixas nas lesões |
 | CheXpert-small | 224 mil exames | cópia não oficial; grande demais |
 
 ## Por que a "opção A" (triagem por anomalia, validada)

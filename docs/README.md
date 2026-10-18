@@ -7,7 +7,7 @@ Anotações das discussões feitas durante o desenvolvimento da PoC, para usar n
 | [01-problema.md](01-problema.md) | O problema, por que um VAE, o que a PoC não resolve, frase de abertura | 1 |
 | [02-natureza-dos-vaes.md](02-natureza-dos-vaes.md) | Como um VAE se compara a classificação, regressão, CNN e reconhecimento facial; casos de uso | 1, 2 |
 | [03-metricas.md](03-metricas.md) | Loss × métricas da tarefa, precision/recall, armadilhas | 3, 4 |
-| [04-resultados-rsna.md](04-resultados-rsna.md) | Dataset, desenho do experimento, resultados, atalho AP/PA, comparação com o notebook | 4 |
+| [04-resultados-rsna.md](04-resultados-rsna.md) | Dataset, desenho do experimento, resultados, atalho AP/PA | 4 |
 | [05-decisoes.md](05-decisoes.md) | Por que o RSNA, por que a "opção A", Docker, plano da demo | 3, 5 |
 | [06-eda-rsna.md](06-eda-rsna.md) | EDA do dataset: qualidade dos dados, 7 perguntas com hipóteses, o que precisa de tratamento | 3, 4 |
 | [07-higiene-v2.md](07-higiene-v2.md) | v2: higiene dos dados (adultos, duplicata, idades), métricas novas, variação entre sementes | 3, 4 |
@@ -22,7 +22,6 @@ Uma linha por entrega, na ordem em que aconteceram. Documentos antigos não são
 
 | Data | Versão | O que mudou | Documento |
 |---|---|---|---|
-| 16/10/2026 | notebook | PoC com o PneumoniaMNIST (64 px, crianças) | [notebook](../notebooks/poc_vae_raiox.ipynb) |
 | 18/10/2026 | v1 | Pipeline com o RSNA (128 px, só PA); atalho AP/PA medido; notas da apresentação | [01](01-problema.md) a [05](05-decisoes.md) |
 | 18/10/2026 | EDA | Qualidade dos dados, 7 perguntas, tratamentos propostos | [06](06-eda-rsna.md) |
 | 18/10/2026 | v2 | Higiene (adultos, sem duplicata, idades inválidas), F1, precision@k, AUC por equipamento, localização na validação; variação entre sementes medida | [07](07-higiene-v2.md) |

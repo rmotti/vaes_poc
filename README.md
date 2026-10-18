@@ -2,22 +2,10 @@
 
 Um **Autoencoder Variacional (VAE)** treinado **somente com raios-X normais** consegue apontar quais exames fogem do padrão, indicar onde está a alteração e reordenar uma fila de exames por prioridade?
 
-[![Abrir no Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rmotti/vaes_poc/blob/main/notebooks/poc_vae_raiox.ipynb)
-
 ## Como rodar
 
-### Forma 1: notebook no Google Colab
-
-É a versão didática e a primeira versão da PoC, feita com o PneumoniaMNIST (raios-X pediátricos, 64×64 px). Explica cada etapa: fundamentação, arquitetura, treino, avaliação e análise de erros.
-
-1. Abra o notebook no Colab pelo botão acima.
-2. *Ambiente de execução → Alterar o tipo de ambiente de execução → GPU (T4)*.
-3. *Executar tudo*. Leva cerca de 5–10 minutos com GPU. Os dados são baixados automaticamente.
-
-### Forma 2: pipeline local com o RSNA
-
-O código do notebook foi reorganizado em um pacote (`module_vae`) no padrão
-[Cookiecutter Data Science](https://cookiecutter-data-science.drivendata.org/) e aplicado ao
+O pipeline é um pacote Python (`module_vae`), no padrão
+[Cookiecutter Data Science](https://cookiecutter-data-science.drivendata.org/), que usa o
 [RSNA Pneumonia Detection Challenge](https://www.kaggle.com/competitions/rsna-pneumonia-detection-challenge):
 26.684 raios-X de adultos, com três classes (normal, opacidade pulmonar e anormal sem
 opacidade) e caixas marcando as opacidades.
@@ -139,11 +127,9 @@ do pré-processamento, não da parte variacional. A CNN supervisionada fica em 0
 │   ├── raw/rsna           <- arquivos do Kaggle (não versionados)
 │   └── processed          <- imagens redimensionadas (não versionadas)
 ├── models                 <- modelos treinados e metadados, uma pasta por execução
-├── notebooks
-│   └── poc_vae_raiox.ipynb   <- notebook completo (forma 1)
 ├── reports                <- métricas, tabelas e figuras, uma pasta por execução
 ├── tests                  <- testes do pacote (pytest)
-└── module_vae             <- código do pipeline (forma 2)
+└── module_vae             <- código do pipeline
     ├── config.py          <- caminhos, hiperparâmetros e dispositivo (CPU/GPU)
     ├── dataset.py         <- download do RSNA e leitura dos DICOMs
     ├── features.py        <- do resíduo de reconstrução ao score e ao mapa de calor
@@ -166,24 +152,8 @@ do pré-processamento, não da parte variacional. A CNN supervisionada fica em 0
 > `modeling/compare_runs.py` (regra das ablações). A demo fica em `interfaces/` e os
 > insumos da apresentação em `docs/`.
 
-Onde cada seção do notebook foi parar:
-
-| Seção do notebook | Módulo |
-|---|---|
-| 2. Configuração | `config.py` |
-| 3. Dados | `dataset.py`, `modeling/split.py` |
-| 4. Arquitetura | `modeling/architecture.py` |
-| 5. Treinamento | `modeling/train.py` |
-| 7. Score de anomalia | `features.py`, `modeling/calibration.py` |
-| 8.1–8.4 Avaliação, limiar e fila | `modeling/evaluate.py` |
-| 8.2 Comparação com alternativas | `modeling/baselines.py` |
-| 8.5 Hiperparâmetros | `modeling/ablation.py` |
-| 9. Análise de erros | figuras `false_positives.png` e `false_negatives.png` |
-| 11. Salvando o modelo | `modeling/train.py` (`save_model`), `modeling/predict.py` (`load_model`) |
-
 ## Dados
 
-- **Pipeline:** [RSNA Pneumonia Detection Challenge](https://www.kaggle.com/competitions/rsna-pneumonia-detection-challenge) (RSNA, NIH, Society of Thoracic Radiology e MD.ai). O uso segue as regras da competição no Kaggle.
-- **Notebook:** PneumoniaMNIST (MedMNIST v2, Yang et al., 2023), derivado de Kermany et al. (2018), licença CC BY 4.0.
+- [RSNA Pneumonia Detection Challenge](https://www.kaggle.com/competitions/rsna-pneumonia-detection-challenge) (RSNA, NIH, Society of Thoracic Radiology e MD.ai). O uso segue as regras da competição no Kaggle.
 
 Não é um dispositivo médico e não deve ser usado para diagnóstico.

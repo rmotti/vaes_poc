@@ -70,7 +70,7 @@ Com a normalização, **o atalho enfraqueceu, mas não sumiu**: o score ainda se
 
 ## O que precisa ser dito com honestidade
 
-1. **A melhoria não é do "V".** A normalização e a máscara ajudaram **todos** os métodos de reconstrução por igual: na v3, VAE (0,801), autoencoder comum (0,805) e PCA (0,808) estão empatados. O achado do notebook e da v1 continua: **o VAE não detecta melhor que um autoencoder comum**. O que melhorou foi o pré-processamento. O que o "V" acrescenta é o espaço latente organizado (gerar exames, interpolar), mostrado na demo.
+1. **A melhoria não é do "V".** A normalização e a máscara ajudaram **todos** os métodos de reconstrução por igual: na v3, VAE (0,801), autoencoder comum (0,805) e PCA (0,808) estão empatados. O achado da v1 continua: **o VAE não detecta melhor que um autoencoder comum**. O que melhorou foi o pré-processamento. O que o "V" acrescenta é o espaço latente organizado (gerar exames, interpolar), mostrado na demo.
 2. **O ganho real de localização é pequeno.** 35,6% parece muito melhor que os 25,1% da v1, mas, dentro da máscara, o acaso é 17,6%. Descontando o acaso, são **18,0 pontos** na v3, contra 17,8 na v1. A máscara **limpou** os mapas; não os tornou duas vezes mais precisos.
 3. **Mais variação entre sementes.** O VAE da v3 varia ± 0,033 no teste (v2: ± 0,009). O modelo salvo (semente 0, AUC 0,804) está perto da média.
 4. **O viés de equipamento continua.** O equipamento 0,168 (um dos "claros") segue com a pior AUC: 0,725, contra 0,84 no 0,143. A normalização não eliminou a diferença.

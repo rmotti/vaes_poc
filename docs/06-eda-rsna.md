@@ -119,9 +119,9 @@ A incidência muda a imagem por si só. A diferença entre a imagem média dos n
 
 ---
 
-## Pergunta 4: as imagens diferem em propriedades simples (o atalho do PneumoniaMNIST)?
+## Pergunta 4: as imagens diferem em propriedades simples?
 
-**Hipótese:** no PneumoniaMNIST, a quantidade de detalhe fino separava as classes com AUC 0,91 sem modelo nenhum. Algo parecido pode existir aqui.
+**Hipótese:** em datasets de raio-X, diferenças de aquisição às vezes fazem propriedades simples da imagem (brilho, contraste, quantidade de detalhe fino) separarem as classes sem modelo nenhum. Algo parecido pode existir aqui.
 
 **Resultado (só PA, AUC sem direção, 0,5 = sem separação):**
 
@@ -137,7 +137,7 @@ A incidência muda a imagem por si só. A diferença entre a imagem média dos n
 
 **Conclusão:** hipótese rejeitada. Dentro do PA, nenhuma propriedade simples separa as classes. É uma boa notícia: o VAE precisa achar o sinal na **anatomia**, e não em artefatos.
 
-**Implicação:** confirma que a heurística de detalhe do notebook era um viés do PneumoniaMNIST (no pipeline, ela caiu de 0,91 para 0,55). Mas o **brilho tem dois picos** (por volta de 0,43 e 0,63), o que leva à próxima pergunta.
+**Implicação:** a heurística de nível de detalhe usada como referência no pipeline fica em 0,55: não é um atalho aqui. Mas o **brilho tem dois picos** (por volta de 0,43 e 0,63), o que leva à próxima pergunta.
 
 ---
 
@@ -250,7 +250,7 @@ O split é feito por paciente (70/15/15), estratificado por classe e incidência
 
 1. **Os rótulos são confiáveis** (consistentes e completos); os problemas estão na **composição** do dataset.
 2. **A incidência é o maior risco**: daí o experimento principal só com PA.
-3. **Dentro do PA não há atalho simples** de brilho, contraste ou detalhe, ao contrário do PneumoniaMNIST. O sinal precisa vir da anatomia.
+3. **Dentro do PA não há atalho simples** de brilho, contraste ou detalhe. O sinal precisa vir da anatomia.
 4. **Sobra um viés leve de equipamento**, que vale testar com normalização de intensidade.
 5. **O tamanho das lesões justifica o σ** escolhido e a resolução de 128 px.
 6. **O "normal" não é homogêneo** (bordas, marcadores, crianças, dois grupos de brilho): a principal melhoria futura é restringir o score aos pulmões.

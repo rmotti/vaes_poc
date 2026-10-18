@@ -46,9 +46,9 @@ Um modelo pode aprender "AP = doente" em vez da doença. Por isso o experimento 
 
 ## Achados
 
-- **O padrão do notebook se repete:** VAE empata com o autoencoder comum e fica abaixo da CNN. A distância para a CNN caiu de 0,09 para 0,07.
+- **O VAE empata com o autoencoder comum** e fica 0,07 abaixo da CNN supervisionada.
 - **A suavização continua essencial:** erro pixel a pixel 0,69 → com σ = 10, 0,76.
-- **A heurística de detalhe era viés do PneumoniaMNIST:** 0,91 no notebook, 0,55 no RSNA. Responde a pergunta que o notebook deixou em aberto (fisiologia ou viés de aquisição?).
+- **Propriedades simples da imagem não separam as classes:** a heurística de nível de detalhe, mesmo escolhida olhando os rótulos, fica em 0,55. O sinal precisa vir da anatomia.
 - **Anomalias nunca vistas:** "anormal sem opacidade" × normal dá AUC **0,69**; 19,5% deles passam do limiar (contra ~5% esperado nos normais). Suporte modesto à promessa de "detectar qualquer alteração".
 - **Localização:** o ponto mais quente do mapa cai dentro da caixa do radiologista em **25%** dos casos (acaso: 7%); 13,5% do "calor" fica dentro das caixas (acaso: 7,3%). Melhor que o acaso, mas o mapa acende muito fora da lesão (bordas, ombros, abdômen).
 
@@ -71,21 +71,6 @@ Mesmo pipeline, com as duas incidências:
 | CNN supervisionada | 0,83 | 0,94 |
 
 O número geral sobe, mas a localização cai ao nível do acaso e o score passa a medir em parte a incidência. A CNN também ganha 0,11 com o mesmo atalho. **Número maior não é modelo melhor:** é preciso perguntar *o que* o modelo aprendeu.
-
-## Comparação com o notebook (PneumoniaMNIST)
-
-| | Notebook (PneumoniaMNIST, 64 px) | Pipeline (RSNA PA, 128 px) |
-|---|---|---|
-| Pacientes | crianças de 1 a 5 anos, 1 hospital | adultos |
-| Normais no treino | 1.214 | 5.050 |
-| VAE | 0,83 ± 0,01 | 0,757 ± 0,002 |
-| Autoencoder comum | 0,83 ± 0,02 | 0,757 ± 0,002 |
-| CNN | 0,92 | 0,83 |
-| Erro ingênuo (σ = 0) | 0,62 | 0,69 |
-| Heurística de detalhe | 0,91 | 0,55 |
-| Fila (posição média) | 51 → 21 | 51 → 27 |
-
-A AUC menor no RSNA não significa modelo pior: o problema é mais difícil (adultos, mais variação) e o PneumoniaMNIST tinha atalhos que inflavam todos os métodos.
 
 ## Limitações
 

@@ -44,7 +44,7 @@ Em **arquitetura**, o VAE é parente da CNN: o encoder dele é uma CNN, e a CNN 
 ## 4. O preço e o ganho de não usar rótulos
 
 **Preço:**
-- Quando há rótulos, o supervisionado ganha: CNN 0,83 × VAE 0,76 no RSNA (0,92 × 0,83 no notebook).
+- Quando há rótulos, o supervisionado ganha: CNN 0,83 × VAE 0,76 no RSNA.
 
   > ⚠️ 18/10/2026: na v3 (normalização + máscara dos pulmões), CNN 0,86 × VAE 0,80 no RSNA só PA; o VAE segue empatado com o autoencoder comum e o PCA. Ver [09-resultados-v3.md](09-resultados-v3.md).
 
