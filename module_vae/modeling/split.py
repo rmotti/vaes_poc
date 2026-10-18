@@ -45,6 +45,8 @@ class DataSplits:
     views_test: np.ndarray
     equipment_val: np.ndarray  # PixelSpacing de cada exame de x_val, como texto ("0.143")
     equipment_test: np.ndarray
+    patient_ids_test: np.ndarray  # patientId de cada exame de x_test (para achar o DICOM)
+    patient_ids_test_other: np.ndarray
     excluded: pd.DataFrame  # exames fora do escopo, por conjunto (linhas) e motivo
 
 
@@ -161,6 +163,8 @@ def split_rsna(
         views_test=meta["view"].to_numpy()[test_ix],
         equipment_val=equipment_of(val_ix),
         equipment_test=equipment_of(test_ix),
+        patient_ids_test=meta["patientId"].to_numpy()[test_ix],
+        patient_ids_test_other=meta["patientId"].to_numpy()[other_ix],
         excluded=excluded,
     )
 
