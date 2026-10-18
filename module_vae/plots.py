@@ -1,4 +1,4 @@
-"""Figuras do pipeline, com o mesmo estilo do notebook. Cada execução salva as suas em
+"""Figuras do pipeline, todas com o mesmo estilo. Cada execução salva as suas em
 reports/<execução>/figures."""
 
 from pathlib import Path

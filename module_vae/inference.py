@@ -6,7 +6,7 @@
 
 A imagem externa é convertida para tons de cinza e redimensionada para a resolução do
 modelo. Ela deve ser um raio-X de tórax frontal inteiro, como os do RSNA: exames com
-outro enquadramento tendem a receber score alto (Seção 9.1 do notebook). O modelo
+outro enquadramento tendem a receber score alto. O modelo
 principal foi treinado só com incidência PA; um exame AP também tende a receber score
 alto.
 """

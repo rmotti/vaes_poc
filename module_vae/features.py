@@ -9,7 +9,7 @@ O resíduo r = x − x̂ mistura duas coisas de natureza diferente:
   erro é maior nos normais e cancela o sinal útil.
 
 Por isso o score suaviza o resíduo com um filtro gaussiano de largura σ antes de medir o
-erro (Seção 7 do notebook). Com σ = 0, o score volta a ser o erro quadrático médio comum.
+erro. Com σ = 0, o score volta a ser o erro quadrático médio comum.
 """
 
 import numpy as np
@@ -85,8 +85,8 @@ def anomaly_score(
 def detail_level(x: torch.Tensor, sigma: float = 1.5) -> np.ndarray:
     """Nível de detalhe fino de cada imagem: |x − suavizar(x)| médio.
 
-    É a heurística da Seção 7.2 do notebook ("menos detalhe = pneumonia"). Só serve de
-    referência: ela foi descoberta olhando os rótulos de pneumonia.
+    É a heurística "menos detalhe = pneumonia". Só serve de referência: ela foi escolhida
+    olhando os rótulos de pneumonia.
     """
     return (x - smooth(x, sigma)).abs().mean(dim=(1, 2, 3)).numpy()
 

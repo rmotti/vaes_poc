@@ -1,6 +1,6 @@
 """Avaliação final no conjunto de teste e simulação da fila de triagem (Seção 8).
 
-Além das métricas do notebook, as caixas e as classes do RSNA permitem três avaliações:
+Além das métricas de detecção, as caixas e as classes do RSNA permitem três avaliações:
 
 - outras anomalias: o VAE sinaliza exames anormais que não são pneumonia?
 - localização: o mapa de calor aponta a lesão marcada pelo radiologista?
@@ -84,7 +84,7 @@ def compare_thresholds(
     """Compara as métricas de vários limiares na validação e no teste.
 
     Se a especificidade do teste ficar bem abaixo da validação, o "normal" mudou entre os
-    conjuntos (Seção 9.3 do notebook) e o limiar precisaria ser recalibrado. A última
+    conjuntos e o limiar precisaria ser recalibrado. A última
     linha é a referência "normal para todos" (limiar infinito).
     """
     columns = ["sensitivity", "specificity", "precision", "f1", "accuracy"]

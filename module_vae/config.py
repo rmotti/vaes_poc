@@ -28,8 +28,8 @@ MLFLOW_ARTIFACTS_DIR = Path(os.environ.get("VAE_MLFLOW_ARTIFACTS", PROJ_ROOT / "
 # reports/rsna_pa_v2...); a v1 ocupa as pastas sem sufixo (models/rsna_pa, reports/rsna_pa).
 VERSION = "v2"
 
-# Resolução das imagens. Os DICOMs do RSNA têm 1024 px; em 64 px (a resolução do
-# notebook) opacidades pequenas somem.
+# Resolução das imagens. Os DICOMs do RSNA têm 1024 px; em 64 px, opacidades pequenas
+# somem.
 IMAGE_SIZE = 128
 
 # Higiene dos dados (a partir da v2, ver docs/07-higiene-v2.md)
@@ -46,7 +46,7 @@ ABLATION_MIN_AUC_GAIN = 0.02
 ABLATION_MIN_POINTING_GAIN = 0.08
 ABLATION_REFERENCE = ["v2-linha-de-base", "v2-semente-1", "v2-semente-2"]
 
-# Hiperparâmetros (os mesmos da configuração do notebook)
+# Hiperparâmetros
 LATENT_DIM = 8  # tamanho do código latente z
 BETA = 1.0  # peso do termo KL (β = 1 → VAE clássico)
 EPOCHS = 40

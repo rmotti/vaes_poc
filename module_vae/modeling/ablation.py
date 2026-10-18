@@ -1,4 +1,4 @@
-"""Experimentos com hiperparâmetros (Seção 8.5 do notebook).
+"""Experimentos com hiperparâmetros.
 
 Varia o tamanho do espaço latente e o peso β do KL, um de cada vez, e mede a AUC na
 validação (o teste não é usado para escolher nada). Cada configuração é treinada uma vez

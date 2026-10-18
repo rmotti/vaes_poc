@@ -1,4 +1,4 @@
-"""Comparação do VAE com alternativas (Seção 8.2 do notebook).
+"""Comparação do VAE com alternativas.
 
 Sem rótulos da doença (mesmas condições do VAE): brilho médio, imagem média dos
 normais, PCA com 8 componentes e autoencoder comum. Com rótulos (referências, condições
