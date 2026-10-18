@@ -27,6 +27,11 @@ export interface ModelInfo {
   latent_dim: number;
   auc_val: number;
   n_test: number;
+  image_size?: number;
+  original_image_size?: number;
+  epochs?: number;
+  version?: string;
+  threshold_rule?: string;
   test?: {
     roc_auc: number;
     sensitivity: number;

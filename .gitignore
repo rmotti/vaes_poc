@@ -5,6 +5,7 @@ __pycache__/
 
 # ambiente e caches
 .venv/
+.bootstrap/
 .pytest_cache/
 .ruff_cache/
 

@@ -10,5 +10,6 @@ Anotações das discussões feitas durante o desenvolvimento da PoC, para usar n
 | [04-resultados-rsna.md](04-resultados-rsna.md) | Dataset, desenho do experimento, resultados, atalho AP/PA, comparação com o notebook | 4 |
 | [05-decisoes.md](05-decisoes.md) | Por que o RSNA, por que a "opção A", Docker, plano da demo | 3, 5 |
 | [06-eda-rsna.md](06-eda-rsna.md) | EDA do dataset: qualidade dos dados, 7 perguntas com hipóteses, o que precisa de tratamento | 3, 4 |
+| [07-guia-do-projeto.md](07-guia-do-projeto.md) | Guia completo: finalidade, VAE, dados, score, resultados, interface e próximos passos | 1–5 |
 
 Barema: (1) fundamentação, (2) arquitetura/diagrama, (3) implementação, (4) avaliação experimental com métricas, erros e limitações, (5) demonstração ao vivo.

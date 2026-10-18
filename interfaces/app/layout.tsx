@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./workspace.css";
+import "./experience.css";
+import "./queue-stage.css";
 
 export const metadata: Metadata = {
-  title: "Triagem com VAE",
-  description: "Prova de conceito: triagem de raio-X de tórax com um autoencoder variacional",
+  title: "VAE Lab · Triagem de raio-X",
+  description:
+    "Prova de conceito: triagem de raio-X de tórax com um autoencoder variacional",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="pt-BR">
       <body>{children}</body>

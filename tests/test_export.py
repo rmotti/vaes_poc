@@ -1,7 +1,35 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 
-from module_vae.export import boxes_percent, sample_exams
+from module_vae.export import ORIGINAL_SIZE, RunExport, boxes_percent, sample_exams
+
+
+def test_model_info_exports_parameters_from_the_trained_run(tmp_path):
+    run = RunExport.__new__(RunExport)
+    run.paths = SimpleNamespace(name="future_run", reports=tmp_path)
+    run.size = 256
+    run.meta = {
+        "views": ["PA"],
+        "sigma": 3,
+        "threshold": 0.1,
+        "latent_dim": 4,
+        "auc_val": 0.77,
+        "version": "future",
+        "epochs": 12,
+        "threshold_rule": "regra da execução futura",
+    }
+    run.splits = SimpleNamespace(y_test=[0, 1])
+
+    info = run.model_info()
+
+    assert info["image_size"] == 256
+    assert info["original_image_size"] == ORIGINAL_SIZE
+    assert info["epochs"] == 12
+    assert info["version"] == "future"
+    assert info["threshold_rule"] == run.meta["threshold_rule"]
+    assert info["n_test"] == 2
 
 
 def test_sample_exams_keeps_view_share_of_each_class():

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import FakeQr from "@/components/game/FakeQr";
+import Icon from "@/components/Icon";
 import LabelTag from "@/components/LabelTag";
 import { byScore, fmtScore } from "@/lib/format";
 import type { Exam } from "@/lib/types";
@@ -14,7 +14,9 @@ export default function GameTab({ exams }: { exams: Exam[] }) {
 
   function pick(id: string) {
     if (revealed) return;
-    setPicks((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
+    setPicks((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
   }
 
   function reset() {
@@ -29,15 +31,19 @@ export default function GameTab({ exams }: { exams: Exam[] }) {
           <div>
             <h2>Quem você laudaria primeiro?</h2>
             <p className="sub">
-              Clique nos {exams.length} exames na ordem de prioridade (1 = mais urgente). Depois compare com o VAE e
-              com o laudo.
+              Clique nos {exams.length} exames na ordem de prioridade (1 = mais
+              urgente). Depois compare com o VAE e com o laudo.
             </p>
           </div>
           <div className="controls">
             <button className="btn" onClick={reset}>
               Limpar
             </button>
-            <button className="btn primary" onClick={() => setRevealed(true)} disabled={picks.length !== exams.length}>
+            <button
+              className="btn primary"
+              onClick={() => setRevealed(true)}
+              disabled={picks.length !== exams.length}
+            >
               Revelar
             </button>
           </div>
@@ -50,6 +56,8 @@ export default function GameTab({ exams }: { exams: Exam[] }) {
                 key={exam.id}
                 className={`game-card ${pos >= 0 ? "picked" : ""} ${revealed ? "revealed" : ""}`}
                 onClick={() => pick(exam.id)}
+                aria-pressed={pos >= 0}
+                aria-label={`${exam.id}${pos >= 0 ? `, prioridade ${pos + 1}` : ", não selecionado"}`}
               >
                 <img src={exam.img} alt={`Exame ${exam.id}`} />
                 <span className="order">{pos >= 0 ? pos + 1 : ""}</span>
@@ -65,10 +73,28 @@ export default function GameTab({ exams }: { exams: Exam[] }) {
         </div>
       </div>
       <aside className="panel game-side">
-        <h3>Na apresentação</h3>
-        <FakeQr />
-        <p className="qr-note">QR ilustrativo</p>
-        <p>A turma escaneia o QR code e vota pelo celular. O placar mostra, ao vivo, o ranking da turma, o do VAE e o laudo.</p>
+        <span className="challenge-icon">
+          <Icon name="spark" size={24} />
+        </span>
+        <h3>Sua ordem de prioridade</h3>
+        <p>
+          Selecione todos os exames, começando por aquele que você revisaria
+          primeiro. Clique de novo para remover uma escolha.
+        </p>
+        <div className="challenge-progress">
+          <span role="status">
+            {picks.length} de {exams.length} selecionados
+          </span>
+          <progress
+            max={exams.length}
+            value={picks.length}
+            aria-label="Exames selecionados"
+          />
+        </div>
+        <p className="note">
+          Ao revelar, compare quantas opacidades aparecem no início de cada
+          fila. Este desafio é local, sem votação em tempo real.
+        </p>
         {revealed && <Results exams={exams} picks={picks} />}
       </aside>
     </div>
@@ -80,7 +106,8 @@ function Results({ exams, picks }: { exams: Exam[]; picks: string[] }) {
   const yours = picks.map((id) => byId[id]);
   const vae = byScore(exams);
   const nPos = exams.filter((e) => e.label === "opacidade").length;
-  const hits = (list: Exam[]) => list.slice(0, nPos).filter((e) => e.label === "opacidade").length;
+  const hits = (list: Exam[]) =>
+    list.slice(0, nPos).filter((e) => e.label === "opacidade").length;
   const list = (items: Exam[]) => (
     <ol>
       {items.map((e) => (

@@ -7,7 +7,7 @@ O site (Next.js, em interfaces/) não roda o modelo: scores, reconstruções, ma
 calor, o espaço latente e as imagens do gerador são calculados aqui e gravados em
 interfaces/public/data, junto com o data.json que a página lê.
 
-- O modelo principal (só PA) alimenta as três abas.
+- O modelo principal (só PA) alimenta as áreas da demonstração.
 - O modelo com AP e PA (opcional) só alimenta a fila, no botão "AP + PA", para mostrar
   o atalho da incidência.
 
@@ -168,6 +168,13 @@ class RunExport:
             "latent_dim": self.meta["latent_dim"],
             "auc_val": round(self.meta["auc_val"], 3),
             "n_test": len(self.splits.y_test),
+            "image_size": self.size,
+            "original_image_size": ORIGINAL_SIZE,
+            **{
+                key: self.meta[key]
+                for key in ("version", "epochs", "threshold_rule")
+                if key in self.meta
+            },
         }
         metrics_path = self.paths.reports / "metrics.json"
         if metrics_path.exists():
