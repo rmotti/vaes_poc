@@ -32,7 +32,7 @@ app = typer.Typer()
 @app.command()
 def main(
     run: Annotated[
-        str, typer.Option(help="Execução treinada: rsna_pa ou rsna_ap_pa.")
+        str, typer.Option(help="Execução treinada: rsna_pa, rsna_ap_pa, rsna_pa_v2...")
     ] = "rsna_pa",
 ):
     """Treina cada configuração e registra a AUC de validação."""
@@ -44,7 +44,12 @@ def main(
     sigma, epochs, base_latent = metadata["sigma"], metadata["epochs"], metadata["latent_dim"]
     logger.info(f"Execução {run} | σ: {sigma} | épocas: {epochs}")
 
-    splits = load_splits(metadata["image_size"], metadata["views"])
+    splits = load_splits(
+        metadata["image_size"],
+        metadata["views"],
+        # modelos da v1 não têm "hygiene" nos metadados: foram treinados sem higiene
+        hygiene=metadata.get("hygiene", False),
+    )
 
     # A configuração da execução aparece nas duas varreduras; ela é treinada uma vez só.
     configs = [(d, BETA) for d in LATENT_DIMS] + [(base_latent, b) for b in BETAS if b != BETA]

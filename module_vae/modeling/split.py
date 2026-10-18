@@ -11,6 +11,10 @@ CNN supervisionada, usada como referência, os utiliza).
 O "positivo" é a opacidade pulmonar (pneumonia). Os exames "anormais sem opacidade" do
 teste ficam à parte (x_test_other): eles medem se o VAE sinaliza alterações que não são
 pneumonia, sem terem sido usados para escolher nada.
+
+A partir da v2, os exames fora do escopo (duplicata, idade ausente, menores de 18) saem
+dos três conjuntos. Assim como o filtro de incidência, isso acontece depois do sorteio:
+o split é o mesmo da v1, e o teste da v2 é o teste da v1 sem esses exames.
 """
 
 from dataclasses import dataclass
@@ -35,8 +39,13 @@ class DataSplits:
     x_train_normal: torch.Tensor
     x_val_normal: torch.Tensor
     x_test_other: torch.Tensor  # anormais sem opacidade
-    boxes_test: pd.DataFrame  # caixas das opacidades (test_index, x, y, width, height)
-    views_test: np.ndarray  # incidência (AP ou PA) de cada exame de x_test
+    boxes_val: pd.DataFrame  # caixas das opacidades (exam_index, x, y, width, height)
+    boxes_test: pd.DataFrame
+    views_val: np.ndarray  # incidência (AP ou PA) de cada exame de x_val
+    views_test: np.ndarray
+    equipment_val: np.ndarray  # PixelSpacing de cada exame de x_val, como texto ("0.143")
+    equipment_test: np.ndarray
+    excluded: pd.DataFrame  # exames fora do escopo, por conjunto (linhas) e motivo
 
 
 def split_rsna(
@@ -45,15 +54,19 @@ def split_rsna(
     boxes: pd.DataFrame,
     views: list[str],
     seed: int = 42,
+    hygiene: bool = True,
 ) -> DataSplits:
     """Divide o RSNA em 70% treino, 15% validação e 15% teste.
 
     Args:
         images (np.ndarray): Imagens (N, H, W) em uint8.
-        meta (pd.DataFrame): patientId, label e view de cada imagem.
+        meta (pd.DataFrame): patientId, label, view, pixel_spacing e exclusion de cada
+            imagem (ver dataset.load_rsna).
         boxes (pd.DataFrame): Caixas das opacidades (patientId, x, y, width, height).
         views (list[str]): Incidências mantidas ("PA", ou "AP" e "PA").
         seed (int): Semente do sorteio.
+        hygiene (bool): Tira os exames fora do escopo (coluna exclusion). False reproduz
+            os conjuntos da v1.
 
     Returns:
         DataSplits: Conjuntos com normais (0) e opacidades (1), mais os anormais sem
@@ -69,13 +82,17 @@ def split_rsna(
         rest_idx, test_size=0.50, stratify=strata[rest_idx], random_state=seed
     )
 
-    # O filtro de incidência vem depois do sorteio: assim o teste só com PA é um pedaço
-    # do teste com AP e PA, e os dois experimentos podem ser comparados.
+    # Os filtros de incidência e de escopo vêm depois do sorteio: assim o teste só com PA
+    # é um pedaço do teste com AP e PA, o teste da v2 é um pedaço do teste da v1, e os
+    # experimentos podem ser comparados.
     labels = meta["label"].to_numpy()
     in_views = meta["view"].isin(views).to_numpy()
+    exclusion = meta["exclusion"].to_numpy() if hygiene else np.full(len(meta), "")
+    in_scope = exclusion == ""
 
     def select(split_idx: np.ndarray, classes: list[str]) -> np.ndarray:
-        return split_idx[in_views[split_idx] & np.isin(labels[split_idx], classes)]
+        keep = in_views[split_idx] & in_scope[split_idx] & np.isin(labels[split_idx], classes)
+        return split_idx[keep]
 
     def to_tensor(ix: np.ndarray) -> torch.Tensor:
         return torch.from_numpy(images[ix]).float().unsqueeze(1) / 255.0
@@ -90,25 +107,42 @@ def split_rsna(
     y_test = (labels[test_ix] == "opacity").astype(int)
     x_train, x_val = to_tensor(train_ix), to_tensor(val_ix)
 
-    # Caixas das opacidades do teste, com a posição de cada exame em x_test
-    position = {pid: i for i, pid in enumerate(meta["patientId"].to_numpy()[test_ix])}
-    boxes_test = boxes[boxes["patientId"].isin(position)].assign(
-        test_index=lambda df: df["patientId"].map(position)
-    )
+    def boxes_of(ix: np.ndarray) -> pd.DataFrame:
+        """Caixas das opacidades de um conjunto, com a posição de cada exame nele."""
+        position = {pid: i for i, pid in enumerate(meta["patientId"].to_numpy()[ix])}
+        return boxes[boxes["patientId"].isin(position)].assign(
+            exam_index=lambda df: df["patientId"].map(position)
+        )
 
+    def equipment_of(ix: np.ndarray) -> np.ndarray:
+        return meta["pixel_spacing"].to_numpy()[ix].astype(str)
+
+    boxes_val, boxes_test = boxes_of(val_ix), boxes_of(test_ix)
+
+    sets = [("treino", train_idx), ("validação", val_idx), ("teste", test_idx)]
     counts = pd.DataFrame(
         {
-            name: pd.Series(labels[ix]).value_counts()
-            for name, ix in [
-                ("treino", select(train_idx, list(set(labels)))),
-                ("validação", select(val_idx, list(set(labels)))),
-                ("teste", select(test_idx, list(set(labels)))),
-            ]
+            name: pd.Series(labels[select(ix, list(set(labels)))]).value_counts()
+            for name, ix in sets
         }
     ).T
+    # Exames que seriam usados (incidência certa) mas estão fora do escopo
+    excluded = (
+        pd.DataFrame(
+            {
+                name: pd.Series(exclusion[ix[in_views[ix] & ~in_scope[ix]]]).value_counts()
+                for name, ix in sets
+            }
+        )
+        .T.fillna(0)
+        .astype(int)
+    )
     logger.info(f"RSNA, incidências {views}:\n{counts}")
+    if hygiene:
+        logger.info(f"Fora do escopo (já descontados acima):\n{excluded}")
     logger.info(
-        f"Caixas no teste: {len(boxes_test)} em {boxes_test['test_index'].nunique()} exames"
+        f"Caixas: validação {len(boxes_val)} em {boxes_val['exam_index'].nunique()} exames, "
+        f"teste {len(boxes_test)} em {boxes_test['exam_index'].nunique()} exames"
     )
 
     return DataSplits(
@@ -121,12 +155,17 @@ def split_rsna(
         x_train_normal=x_train[torch.from_numpy(y_train == 0)],
         x_val_normal=x_val[torch.from_numpy(y_val == 0)],
         x_test_other=to_tensor(other_ix),
+        boxes_val=boxes_val,
         boxes_test=boxes_test,
+        views_val=meta["view"].to_numpy()[val_ix],
         views_test=meta["view"].to_numpy()[test_ix],
+        equipment_val=equipment_of(val_ix),
+        equipment_test=equipment_of(test_ix),
+        excluded=excluded,
     )
 
 
-def load_splits(image_size: int, views: list[str]) -> DataSplits:
+def load_splits(image_size: int, views: list[str], hygiene: bool = True) -> DataSplits:
     """Carrega o RSNA na resolução pedida e monta os conjuntos."""
     images, meta, boxes = load_rsna(image_size)
-    return split_rsna(images, meta, boxes, views)
+    return split_rsna(images, meta, boxes, views, hygiene=hygiene)

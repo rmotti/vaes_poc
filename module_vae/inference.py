@@ -44,7 +44,7 @@ def main(
         int, typer.Option(help="Exames sorteados do teste quando não há --image.")
     ] = 5,
     run: Annotated[
-        str, typer.Option(help="Execução treinada: rsna_pa ou rsna_ap_pa.")
+        str, typer.Option(help="Execução treinada: rsna_pa, rsna_ap_pa, rsna_pa_v2...")
     ] = "rsna_pa",
 ):
     paths = RunPaths(run)
@@ -54,7 +54,12 @@ def main(
         x, labels = load_image(image, metadata["image_size"]), None
         title = image.name
     else:
-        splits = load_splits(metadata["image_size"], metadata["views"])
+        splits = load_splits(
+            metadata["image_size"],
+            metadata["views"],
+            # modelos da v1 não têm "hygiene" nos metadados: foram treinados sem higiene
+            hygiene=metadata.get("hygiene", False),
+        )
         idx = np.random.default_rng(42).choice(len(splits.x_test), n_samples, replace=False)
         x = splits.x_test[idx]
         labels = np.where(splits.y_test[idx] == 1, metadata["positive_class"], "normal")

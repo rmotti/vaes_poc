@@ -64,7 +64,7 @@ def test_localization_of_a_map_concentrated_in_the_box():
     maps = torch.zeros(1, 1, 16, 16)
     maps[0, 0, 4:8, 4:8] = 1.0
     boxes = pd.DataFrame(
-        {"test_index": [0], "x": [4.0], "y": [4.0], "width": [4.0], "height": [4.0]}
+        {"exam_index": [0], "x": [4.0], "y": [4.0], "width": [4.0], "height": [4.0]}
     )
 
     results = evaluate_localization(maps, boxes)

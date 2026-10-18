@@ -171,7 +171,7 @@ def evaluate_other_anomalies(
     return results
 
 
-def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame) -> dict:
+def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame, split: str = "teste") -> dict:
     """O mapa de calor aponta a lesão? Usa as caixas marcadas pelos radiologistas.
 
     - pointing game: o pixel mais quente do mapa cai dentro de alguma caixa?
@@ -184,12 +184,13 @@ def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame) -> dict:
     aproximação grosseira de gravidade que o dataset permite testar.
 
     Args:
-        maps (torch.Tensor): Mapas de calor do teste (N, 1, H, W).
-        boxes (pd.DataFrame): Caixas (test_index, x, y, width, height) em pixels.
+        maps (torch.Tensor): Mapas de calor de um conjunto (N, 1, H, W).
+        boxes (pd.DataFrame): Caixas (exam_index, x, y, width, height) em pixels.
+        split (str): Nome do conjunto, só para o log.
     """
     size = maps.shape[-1]
     hits, energy, area, score = [], [], [], []
-    for i, group in boxes.groupby("test_index"):
+    for i, group in boxes.groupby("exam_index"):
         mask = np.zeros((size, size), dtype=bool)
         for box in group.itertuples():
             x0, y0 = max(int(box.x), 0), max(int(box.y), 0)
@@ -211,7 +212,7 @@ def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame) -> dict:
         "extent_spearman": float(spearmanr(area, score)[0]),
     }
 
-    logger.success(f"LOCALIZAÇÃO ({results['n_exams']} exames com caixas)")
+    logger.success(f"LOCALIZAÇÃO, {split} ({results['n_exams']} exames com caixas)")
     logger.info(
         f"Pixel mais quente dentro da caixa: {results['pointing_game']:.1%} "
         f"(acaso: {results['box_area_fraction']:.1%})"

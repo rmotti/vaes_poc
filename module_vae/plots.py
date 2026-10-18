@@ -191,7 +191,7 @@ def plot_heatmaps(
 
     Args:
         labels (np.ndarray | None): Nome da classe de cada exame ("normal", "opacidade"...).
-        boxes (pd.DataFrame | None): Caixas das lesões (test_index, x, y, width, height),
+        boxes (pd.DataFrame | None): Caixas das lesões (exam_index, x, y, width, height),
             desenhadas em azul sobre o mapa de calor.
     """
     fig, axes = plt.subplots(3, len(indices), figsize=(2.1 * len(indices), 6.6), squeeze=False)
@@ -205,7 +205,7 @@ def plot_heatmaps(
         axes[2, c].imshow(x[i, 0], cmap="gray", vmin=0, vmax=1)
         axes[2, c].imshow(maps[i, 0], cmap=HEATMAP_CMAP, vmin=0, vmax=vmax)
         if boxes is not None:
-            for box in boxes[boxes["test_index"] == i].itertuples():
+            for box in boxes[boxes["exam_index"] == i].itertuples():
                 axes[2, c].add_patch(
                     Rectangle(
                         (box.x, box.y),

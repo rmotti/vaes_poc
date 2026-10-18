@@ -36,7 +36,13 @@ def make_fake_rsna(n_per_group: int = 20):
     groups = [(label, view) for label in ["normal", "opacity", "other"] for view in ["AP", "PA"]]
     meta = pd.DataFrame(
         [
-            {"patientId": f"p{i}_{j}", "label": label, "view": view}
+            {
+                "patientId": f"p{i}_{j}",
+                "label": label,
+                "view": view,
+                "pixel_spacing": 0.143 if j % 2 else 0.168,
+                "exclusion": "",
+            }
             for i, (label, view) in enumerate(groups)
             for j in range(n_per_group)
         ]
@@ -78,7 +84,35 @@ def test_boxes_point_to_opacity_exams():
 
     splits = split_rsna(images, meta, boxes, views=["AP", "PA"])
 
-    assert (splits.y_test[splits.boxes_test["test_index"]] == 1).all()
+    assert (splits.y_test[splits.boxes_test["exam_index"]] == 1).all()
+
+
+def test_validation_boxes_point_to_validation_opacities():
+    images, meta, boxes = make_fake_rsna()
+
+    splits = split_rsna(images, meta, boxes, views=["AP", "PA"])
+
+    assert len(splits.boxes_val) > 0
+    assert (splits.y_val[splits.boxes_val["exam_index"]] == 1).all()
+    assert len(splits.equipment_val) == len(splits.y_val)
+    assert set(splits.equipment_test) <= {"0.143", "0.168"}
+
+
+def test_hygiene_removes_out_of_scope_exams_and_keeps_the_split():
+    images, meta, boxes = make_fake_rsna()
+    meta.loc[meta.index % 5 == 0, "exclusion"] = "menor de 18"
+    excluded_ids = set(np.where(meta["exclusion"] != "")[0])
+
+    clean = split_rsna(images, meta, boxes, views=["AP", "PA"])
+    v1 = split_rsna(images, meta, boxes, views=["AP", "PA"], hygiene=False)
+
+    # O teste com higiene é o teste da v1 sem os exames fora do escopo.
+    clean_test = set(clean.x_test[:, 0, 0, 0].mul(255).round().int().tolist())
+    v1_test = set(v1.x_test[:, 0, 0, 0].mul(255).round().int().tolist())
+    assert clean_test == v1_test - excluded_ids
+    assert not clean_test & excluded_ids
+    assert clean.excluded.to_numpy().sum() > 0
+    assert v1.excluded.to_numpy().sum() == 0
 
 
 def test_exclusion_reasons():
