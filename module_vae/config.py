@@ -36,6 +36,15 @@ IMAGE_SIZE = 128
 MIN_AGE = 18  # escopo da PoC: adultos
 MAX_VALID_AGE = 100  # idades acima disso (148 a 155 anos no RSNA) são tratadas como ausentes
 
+# Regra das ablações (aprovada em 18/10/2026, antes de qualquer ablação; docs/08-ablacoes.md).
+# Cada ablação roda com as 3 sementes e é comparada pela média, só na validação, com a v2.
+# Aceita se a AUC subir pelo menos ABLATION_MIN_AUC_GAIN ou a localização (pixel mais
+# quente dentro da caixa) subir pelo menos ABLATION_MIN_POINTING_GAIN, desde que a outra
+# não piore mais que um desvio-padrão da v2 entre sementes.
+ABLATION_MIN_AUC_GAIN = 0.02
+ABLATION_MIN_POINTING_GAIN = 0.08
+ABLATION_REFERENCE = ["v2-linha-de-base", "v2-semente-1", "v2-semente-2"]
+
 # Hiperparâmetros (os mesmos da configuração do notebook)
 LATENT_DIM = 8  # tamanho do código latente z
 BETA = 1.0  # peso do termo KL (β = 1 → VAE clássico)
