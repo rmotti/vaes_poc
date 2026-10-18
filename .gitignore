@@ -13,4 +13,4 @@ data/
 pesos/
 
 # gerados ao rodar o pipeline (make train)
-models/*.pt
+models/**/*.pt
