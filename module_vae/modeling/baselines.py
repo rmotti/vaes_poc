@@ -1,4 +1,4 @@
-"""Comparação do VAE com alternativas (Seção 8.2 do notebook).
+"""Comparação do VAE com alternativas.
 
 Sem rótulos da doença (mesmas condições do VAE): brilho médio, imagem média dos
 normais, PCA com 8 componentes e autoencoder comum. Com rótulos (referências, condições
@@ -25,15 +25,18 @@ from module_vae.modeling.train import train_autoencoder, train_supervised_cnn
 
 
 def evaluate_reconstructions(
-    splits: DataSplits, rec_val: torch.Tensor, rec_test: torch.Tensor
+    splits: DataSplits,
+    rec_val: torch.Tensor,
+    rec_test: torch.Tensor,
+    mask: torch.Tensor | None = None,
 ) -> dict:
     """Escolhe σ pela AUC de validação e avalia o score no teste com esse σ."""
     auc_val = {
-        s: roc_auc_score(splits.y_val, anomaly_score(splits.x_val, rec_val, s))
+        s: roc_auc_score(splits.y_val, anomaly_score(splits.x_val, rec_val, s, mask))
         for s in sigmas_for(splits.x_val.shape[-1])
     }
     sigma = max(auc_val, key=auc_val.get)
-    score_test = anomaly_score(splits.x_test, rec_test, sigma)
+    score_test = anomaly_score(splits.x_test, rec_test, sigma, mask)
 
     return {
         "sigma": sigma,
@@ -90,6 +93,7 @@ def compare_methods(
     vae_models: dict[int, VAE],
     seeds: list[int],
     epochs: int = EPOCHS,
+    mask: torch.Tensor | None = None,
 ) -> pd.DataFrame:
     """Treina as alternativas e compara todas com o VAE no mesmo protocolo.
 
@@ -99,6 +103,8 @@ def compare_methods(
             faltarem em seeds são treinadas aqui.
         seeds (list[int]): Sementes do VAE e do autoencoder comum.
         epochs (int): Épocas de treino do VAE e do autoencoder comum.
+        mask (torch.Tensor | None): Máscara dos pulmões (ablação C1), usada no score de
+            todos os métodos baseados em reconstrução.
 
     Returns:
         pd.DataFrame: Uma linha por método. Os marcados com * usam rótulos da doença.
@@ -117,7 +123,10 @@ def compare_methods(
     mean_image = splits.x_train_normal.mean(0, keepdim=True)
     results["Imagem média"] = [
         evaluate_reconstructions(
-            splits, mean_image.expand_as(splits.x_val), mean_image.expand_as(splits.x_test)
+            splits,
+            mean_image.expand_as(splits.x_val),
+            mean_image.expand_as(splits.x_test),
+            mask,
         )
     ]
 
@@ -130,7 +139,7 @@ def compare_methods(
 
     results[f"PCA ({latent_dim} componentes)"] = [
         evaluate_reconstructions(
-            splits, reconstruct_pca(splits.x_val), reconstruct_pca(splits.x_test)
+            splits, reconstruct_pca(splits.x_val), reconstruct_pca(splits.x_test), mask
         )
     ]
 
@@ -160,7 +169,7 @@ def compare_methods(
     for name, models in [("Autoencoder comum", ae_models), ("VAE", vae_models)]:
         results[name] = [
             evaluate_reconstructions(
-                splits, reconstruct(m, splits.x_val), reconstruct(m, splits.x_test)
+                splits, reconstruct(m, splits.x_val), reconstruct(m, splits.x_test), mask
             )
             for seed, m in models.items()
             if seed in seeds

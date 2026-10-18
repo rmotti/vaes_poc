@@ -19,6 +19,10 @@ import pandas as pd
 
 from module_vae.config import MLFLOW_ARTIFACTS_DIR, MLFLOW_TRACKING_URI, PROJ_ROOT
 
+# Sem essa tag, o MLflow 3 abre o experimento na visão de aplicações com LLM (traces,
+# judges); com ela, abre direto na lista de execuções de treino.
+EXPERIMENT_KIND = {"mlflow.experimentKind": "custom_model_development"}
+
 
 def get_experiment_id(name: str) -> str:
     """Devolve o id do experimento, criando-o (com artefatos em mlartifacts/) se preciso."""
@@ -26,7 +30,11 @@ def get_experiment_id(name: str) -> str:
     experiment = mlflow.get_experiment_by_name(name)
     if experiment is not None:
         return experiment.experiment_id
-    return mlflow.create_experiment(name, artifact_location=(MLFLOW_ARTIFACTS_DIR / name).as_uri())
+    return mlflow.create_experiment(
+        name,
+        artifact_location=(MLFLOW_ARTIFACTS_DIR / name).as_uri(),
+        tags=EXPERIMENT_KIND,
+    )
 
 
 def git_commit() -> str:

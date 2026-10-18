@@ -1,12 +1,13 @@
-"""Arquitetura do VAE (Seção 4 do notebook) e da CNN supervisionada usada como referência.
+"""Arquitetura do VAE e da CNN supervisionada usada como referência.
 
-raio-X x ─► Encoder (4 conv: 64→32→16→8→4 px) ─► μ, log σ² ─► z = μ + σ ⊙ ε
-         ─► Decoder (4 deconv: 4→8→16→32→64 px) ─► reconstrução x̂
+raio-X x ─► Encoder (5 conv: 128→64→32→16→8→4 px) ─► μ, log σ² ─► z = μ + σ ⊙ ε
+         ─► Decoder (5 deconv: 4→8→16→32→64→128 px) ─► reconstrução x̂
 
 Loss = BCE(x, x̂) + β · KL( N(μ, σ²) ‖ N(0, I) )
 
-O diagrama acima é o do notebook (64 px). Em 128 px, encoder e decoder ganham uma camada
-a mais cada; o código latente e o "gargalo" de 256 canais × 4 × 4 px continuam iguais.
+A rede se adapta à resolução: cada convolução reduz a imagem pela metade até 4 px, então
+em 64 px encoder e decoder têm uma camada a menos. O código latente e o "gargalo" de 256
+canais × 4 × 4 px são sempre os mesmos.
 """
 
 from itertools import pairwise
@@ -23,7 +24,7 @@ FLAT_SIZE = 256 * 4 * 4  # o encoder sempre termina em 256 canais × 4 × 4 px
 def channels_for(image_size: int) -> list[int]:
     """Canais de cada camada do encoder. Cada convolução reduz a imagem pela metade até 4 px.
 
-    64 px → [1, 32, 64, 128, 256] (a rede do notebook); 128 px → [1, 16, 32, 64, 128, 256].
+    64 px → [1, 32, 64, 128, 256]; 128 px → [1, 16, 32, 64, 128, 256].
     """
     n_blocks = int(math.log2(image_size // 4))
     if image_size != 4 * 2**n_blocks:

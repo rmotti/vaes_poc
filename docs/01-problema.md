@@ -22,7 +22,7 @@ Em serviços de radiologia com muita demanda, os exames de tórax esperam na fil
 | | |
 |---|---|
 | Tipo | detecção de anomalias sem rótulos (o modelo só conhece a classe "normal") |
-| Entrada | raio-X de tórax (128×128 px no RSNA; 64×64 no notebook) |
+| Entrada | raio-X de tórax frontal (128×128 px) |
 | Saída | score de anomalia, mapa de calor, decisão "revisar com prioridade" ou "dentro do padrão", posição na fila |
 | Métrica técnica | AUC-ROC: o score separa os exames alterados dos normais? |
 | Métrica de produto | posição média de um exame alterado numa fila de 100 exames |
@@ -35,6 +35,8 @@ Em serviços de radiologia com muita demanda, os exames de tórax esperam na fil
 - **Gravidade:** o score mede o quanto o exame foge do normal, não o quão grave é o caso. No RSNA, a correlação entre o score e a área da lesão é **−0,14**: o score não acompanha a extensão. Além disso, exames com enquadramento atípico recebem score alto sem ter nada.
 - **Outros hospitais e equipamentos:** o limiar teria que ser recalibrado, porque qualquer mudança no "normal" vira alarme.
 - **"Qualquer doença":** só foi testado com pneumonia/opacidade e com os "anormais sem opacidade" do RSNA (AUC 0,69).
+
+> ⚠️ 18/10/2026: na v3, "anormal sem opacidade" × normal subiu para AUC 0,74, e a correlação score × área da lesão ficou em −0,05 (continua sem medir gravidade). Ver [09-resultados-v3.md](09-resultados-v3.md).
 
 ## Como falar
 

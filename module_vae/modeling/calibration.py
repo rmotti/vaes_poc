@@ -25,6 +25,7 @@ def select_sigma(
     rec_val: torch.Tensor,
     y_val: np.ndarray,
     sigmas: list[float] | None = None,
+    mask: torch.Tensor | None = None,
 ) -> tuple[float, dict[float, float]]:
     """Escolhe a largura da suavização do resíduo pela AUC na validação.
 
@@ -34,12 +35,15 @@ def select_sigma(
         y_val (np.ndarray): Rótulos de validação.
         sigmas (list[float] | None): Larguras testadas, em pixels. Por padrão, SIGMAS
             escalado para a resolução de x_val.
+        mask (torch.Tensor | None): Máscara dos pulmões (ablação C1).
 
     Returns:
         tuple[float, dict[float, float]]: O σ escolhido e a AUC de validação de cada σ.
     """
     sigmas = sigmas or sigmas_for(x_val.shape[-1])
-    auc_by_sigma = {s: roc_auc_score(y_val, anomaly_score(x_val, rec_val, s)) for s in sigmas}
+    auc_by_sigma = {
+        s: roc_auc_score(y_val, anomaly_score(x_val, rec_val, s, mask)) for s in sigmas
+    }
     best_sigma = max(auc_by_sigma, key=auc_by_sigma.get)
 
     logger.info(f"AUC na validação por σ: { {s: round(a, 3) for s, a in auc_by_sigma.items()} }")

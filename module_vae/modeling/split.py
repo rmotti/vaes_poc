@@ -26,6 +26,7 @@ from sklearn.model_selection import train_test_split
 import torch
 
 from module_vae.dataset import load_rsna
+from module_vae.preprocessing import Preprocessing
 
 
 @dataclass
@@ -169,7 +170,14 @@ def split_rsna(
     )
 
 
-def load_splits(image_size: int, views: list[str], hygiene: bool = True) -> DataSplits:
-    """Carrega o RSNA na resolução pedida e monta os conjuntos."""
+def load_splits(
+    image_size: int,
+    views: list[str],
+    hygiene: bool = True,
+    preprocessing: Preprocessing | None = None,
+) -> DataSplits:
+    """Carrega o RSNA na resolução pedida, aplica as ablações A e B e monta os conjuntos."""
     images, meta, boxes = load_rsna(image_size)
+    if preprocessing is not None:
+        images = preprocessing.apply(images)
     return split_rsna(images, meta, boxes, views, hygiene=hygiene)

@@ -2,6 +2,8 @@
 
 Números do modelo só PA no RSNA (teste: 1.082 normais e 203 opacidades).
 
+> ⚠️ 18/10/2026: estes são os números da v1. Os da v3 (AUC 0,804, AP 0,541, sensibilidade 46% com especificidade 94% no p95, F1 0,52, precision@10 1,00) estão em [09-resultados-v3.md](09-resultados-v3.md). As armadilhas abaixo continuam valendo: na v3, a acurácia no p95 é 0,866 contra 0,844 de "normal para todos".
+
 ## A tarefa de treino é diferente da tarefa avaliada
 
 | | O que mede | Onde aparece |
@@ -22,7 +24,7 @@ Nos classificadores supervisionados (Olist, CNN), a tarefa treinada e a avaliada
 
 - A loss cai e se estabiliza, com treino e validação próximos: **sem overfitting**.
 - O KL não vai a zero: o espaço latente está sendo usado (**sem colapso do posterior**).
-- **A loss não mede a detecção:** ela é calculada só com normais. Loss menor ≠ detector melhor. No notebook, com latente 32 o modelo reconstrói melhor, mas reconstrói até as anomalias, e a AUC cai.
+- **A loss não mede a detecção:** ela é calculada só com normais. Loss menor ≠ detector melhor: um modelo com latente maior reconstrói melhor, mas pode reconstruir até as anomalias, e aí o resíduo delas some.
 - O score de anomalia é parecido com uma "loss por exame" (erro de reconstrução suavizado), mas é avaliado comparando normais com alterados.
 
 ## Métricas principais: não dependem de limiar

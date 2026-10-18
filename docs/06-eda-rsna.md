@@ -119,9 +119,9 @@ A incidência muda a imagem por si só. A diferença entre a imagem média dos n
 
 ---
 
-## Pergunta 4: as imagens diferem em propriedades simples (o atalho do PneumoniaMNIST)?
+## Pergunta 4: as imagens diferem em propriedades simples?
 
-**Hipótese:** no PneumoniaMNIST, a quantidade de detalhe fino separava as classes com AUC 0,91 sem modelo nenhum. Algo parecido pode existir aqui.
+**Hipótese:** em datasets de raio-X, diferenças de aquisição às vezes fazem propriedades simples da imagem (brilho, contraste, quantidade de detalhe fino) separarem as classes sem modelo nenhum. Algo parecido pode existir aqui.
 
 **Resultado (só PA, AUC sem direção, 0,5 = sem separação):**
 
@@ -137,7 +137,7 @@ A incidência muda a imagem por si só. A diferença entre a imagem média dos n
 
 **Conclusão:** hipótese rejeitada. Dentro do PA, nenhuma propriedade simples separa as classes. É uma boa notícia: o VAE precisa achar o sinal na **anatomia**, e não em artefatos.
 
-**Implicação:** confirma que a heurística de detalhe do notebook era um viés do PneumoniaMNIST (no pipeline, ela caiu de 0,91 para 0,55). Mas o **brilho tem dois picos** (por volta de 0,43 e 0,63), o que leva à próxima pergunta.
+**Implicação:** a heurística de nível de detalhe usada como referência no pipeline fica em 0,55: não é um atalho aqui. Mas o **brilho tem dois picos** (por volta de 0,43 e 0,63), o que leva à próxima pergunta.
 
 ---
 
@@ -238,11 +238,19 @@ O split é feito por paciente (70/15/15), estratificado por classe e incidência
 | 11 | Classes desbalanceadas | 15,8% de opacidades no teste PA | acurácia enganosa | ✅ AUC, AP e métricas do topo da fila |
 | 12 | Redução de 1024 para 128 px | lesões com ~27 px de largura em 128 px | lesões muito pequenas se perdem | ✅ 128 px como compromisso; 💡 testar 256 px |
 
+> ⚠️ 18/10/2026: o que aconteceu com cada proposta (💡):
+>
+> - **2, 3 e 4:** tratados na v2. A duplicata saiu, as idades impossíveis viraram ausentes, e os menores de 18 ficaram fora do escopo. Ver [07-higiene-v2.md](07-higiene-v2.md).
+> - **6:** a AUC por equipamento entrou na v2; a normalização de intensidade (ablação B) foi **aceita** e está na v3. O viés de equipamento diminuiu, mas não sumiu.
+> - **7:** o recorte das bordas (ablação A) foi **rejeitado**: não melhorou a AUC.
+> - **8:** a máscara dos pulmões (ablação C1) foi **aceita** e está na v3, como máscara média. A segmentação por exame ficou como trabalho futuro. Ver [08-ablacoes.md](08-ablacoes.md).
+> - **12:** 256 px não foi testado.
+
 ## Conclusões para a modelagem
 
 1. **Os rótulos são confiáveis** (consistentes e completos); os problemas estão na **composição** do dataset.
 2. **A incidência é o maior risco**: daí o experimento principal só com PA.
-3. **Dentro do PA não há atalho simples** de brilho, contraste ou detalhe, ao contrário do PneumoniaMNIST. O sinal precisa vir da anatomia.
+3. **Dentro do PA não há atalho simples** de brilho, contraste ou detalhe. O sinal precisa vir da anatomia.
 4. **Sobra um viés leve de equipamento**, que vale testar com normalização de intensidade.
 5. **O tamanho das lesões justifica o σ** escolhido e a resolução de 128 px.
 6. **O "normal" não é homogêneo** (bordas, marcadores, crianças, dois grupos de brilho): a principal melhoria futura é restringir o score aos pulmões.

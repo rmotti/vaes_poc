@@ -9,7 +9,7 @@ O resíduo r = x − x̂ mistura duas coisas de natureza diferente:
   erro é maior nos normais e cancela o sinal útil.
 
 Por isso o score suaviza o resíduo com um filtro gaussiano de largura σ antes de medir o
-erro (Seção 7 do notebook). Com σ = 0, o score volta a ser o erro quadrático médio comum.
+erro. Com σ = 0, o score volta a ser o erro quadrático médio comum.
 """
 
 import numpy as np
@@ -48,35 +48,45 @@ def smooth(img: torch.Tensor, sigma: float, batch_size: int = 128) -> torch.Tens
     return torch.cat(out)
 
 
-def anomaly_map(x: torch.Tensor, x_rec: torch.Tensor, sigma: float) -> torch.Tensor:
+def anomaly_map(
+    x: torch.Tensor, x_rec: torch.Tensor, sigma: float, mask: torch.Tensor | None = None
+) -> torch.Tensor:
     """Mapa de calor: resíduo suavizado e elevado ao quadrado, pixel a pixel.
 
     Args:
         x (torch.Tensor): Exames originais (N, 1, H, W).
         x_rec (torch.Tensor): Reconstruções do modelo, mesmo formato.
         sigma (float): Largura da suavização do resíduo, em pixels.
+        mask (torch.Tensor | None): Máscara dos pulmões (H, W), ablação C1. Fora dela, o
+            mapa é zero. A suavização vem antes, então o mapa não ganha uma "borda".
 
     Returns:
         torch.Tensor: Mapa (N, 1, H, W). Valores altos indicam onde o exame foge do
             "normal" reconstruído.
     """
-    return smooth(x - x_rec, sigma) ** 2
+    heatmap = smooth(x - x_rec, sigma) ** 2
+    return heatmap if mask is None else heatmap * mask.to(heatmap)
 
 
-def anomaly_score(x: torch.Tensor, x_rec: torch.Tensor, sigma: float) -> np.ndarray:
+def anomaly_score(
+    x: torch.Tensor, x_rec: torch.Tensor, sigma: float, mask: torch.Tensor | None = None
+) -> np.ndarray:
     """Score de anomalia de cada exame: a média do mapa de calor.
+
+    Com a máscara, a média continua sobre a imagem inteira; como a área da máscara é a
+    mesma para todos, a ordem dos exames é a mesma da média só dentro dela.
 
     Returns:
         np.ndarray: Score (N,). Quanto maior, mais o exame foge do padrão normal.
     """
-    return anomaly_map(x, x_rec, sigma).mean(dim=(1, 2, 3)).numpy()
+    return anomaly_map(x, x_rec, sigma, mask).mean(dim=(1, 2, 3)).numpy()
 
 
 def detail_level(x: torch.Tensor, sigma: float = 1.5) -> np.ndarray:
     """Nível de detalhe fino de cada imagem: |x − suavizar(x)| médio.
 
-    É a heurística da Seção 7.2 do notebook ("menos detalhe = pneumonia"). Só serve de
-    referência: ela foi descoberta olhando os rótulos de pneumonia.
+    É a heurística "menos detalhe = pneumonia". Só serve de referência: ela foi escolhida
+    olhando os rótulos de pneumonia.
     """
     return (x - smooth(x, sigma)).abs().mean(dim=(1, 2, 3)).numpy()
 

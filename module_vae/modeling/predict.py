@@ -35,6 +35,11 @@ def load_model(
     model.load_state_dict(torch.load(model_path, map_location="cpu"))
     model = model.to(device).eval()
 
+    # Máscara dos pulmões (ablação C1), salva ao lado do modelo
+    mask_path = model_path.parent / "lung_mask.npy"
+    if metadata.get("lung_mask") and mask_path.exists():
+        metadata["mask"] = torch.from_numpy(np.load(mask_path))
+
     logger.info(f"Modelo carregado: {model_path}")
     logger.info(f"σ: {metadata['sigma']} | limiar: {metadata['threshold']:.6f}")
 
@@ -46,6 +51,7 @@ def predict(
     x: torch.Tensor,
     sigma: float,
     threshold: float,
+    mask: torch.Tensor | None = None,
 ) -> tuple[pd.DataFrame, torch.Tensor, torch.Tensor]:
     """Calcula score, decisão e posição na fila de triagem de cada exame.
 
@@ -54,6 +60,7 @@ def predict(
         x (torch.Tensor): Exames (N, 1, H, H) com pixels em [0, 1].
         sigma (float): Largura da suavização do resíduo escolhida na validação.
         threshold (float): Limiar de decisão calibrado na validação.
+        mask (torch.Tensor | None): Máscara dos pulmões (ablação C1).
 
     Returns:
         tuple[pd.DataFrame, torch.Tensor, torch.Tensor]:
@@ -63,7 +70,7 @@ def predict(
             - maps: mapas de calor (o score é a média de cada mapa).
     """
     x_rec = reconstruct(model, x)
-    maps = anomaly_map(x, x_rec, sigma)
+    maps = anomaly_map(x, x_rec, sigma, mask)
     score = maps.mean(dim=(1, 2, 3)).numpy()
 
     predictions = pd.DataFrame(

@@ -1,6 +1,6 @@
 """Avaliação final no conjunto de teste e simulação da fila de triagem (Seção 8).
 
-Além das métricas do notebook, as caixas e as classes do RSNA permitem três avaliações:
+Além das métricas de detecção, as caixas e as classes do RSNA permitem três avaliações:
 
 - outras anomalias: o VAE sinaliza exames anormais que não são pneumonia?
 - localização: o mapa de calor aponta a lesão marcada pelo radiologista?
@@ -84,7 +84,7 @@ def compare_thresholds(
     """Compara as métricas de vários limiares na validação e no teste.
 
     Se a especificidade do teste ficar bem abaixo da validação, o "normal" mudou entre os
-    conjuntos (Seção 9.3 do notebook) e o limiar precisaria ser recalibrado. A última
+    conjuntos e o limiar precisaria ser recalibrado. A última
     linha é a referência "normal para todos" (limiar infinito).
     """
     columns = ["sensitivity", "specificity", "precision", "f1", "accuracy"]
@@ -233,7 +233,12 @@ def evaluate_other_anomalies(
     return results
 
 
-def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame, split: str = "teste") -> dict:
+def evaluate_localization(
+    maps: torch.Tensor,
+    boxes: pd.DataFrame,
+    split: str = "teste",
+    lung_mask: torch.Tensor | None = None,
+) -> dict:
     """O mapa de calor aponta a lesão? Usa as caixas marcadas pelos radiologistas.
 
     - pointing game: o pixel mais quente do mapa cai dentro de alguma caixa?
@@ -249,9 +254,14 @@ def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame, split: str = 
         maps (torch.Tensor): Mapas de calor de um conjunto (N, 1, H, W).
         boxes (pd.DataFrame): Caixas (exam_index, x, y, width, height) em pixels.
         split (str): Nome do conjunto, só para o log.
+        lung_mask (torch.Tensor | None): Máscara dos pulmões (ablação C1). Com ela, o
+            mapa só existe dentro dos pulmões, e um mapa sem informação acertaria a
+            fração da máscara coberta pelas caixas, maior que a da imagem inteira. Essa
+            referência do acaso vai em box_fraction_in_mask.
     """
     size = maps.shape[-1]
-    hits, energy, area, score = [], [], [], []
+    lung = None if lung_mask is None else lung_mask.numpy().astype(bool)
+    hits, energy, area, area_in_lung, score = [], [], [], [], []
     for i, group in boxes.groupby("exam_index"):
         mask = np.zeros((size, size), dtype=bool)
         for box in group.itertuples():
@@ -264,6 +274,8 @@ def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame, split: str = 
         hits.append(mask.flat[heatmap.argmax()])
         energy.append(heatmap[mask].sum() / heatmap.sum())
         area.append(mask.mean())
+        if lung is not None:
+            area_in_lung.append((mask & lung).sum() / lung.sum())
         score.append(heatmap.mean())
 
     results = {
@@ -273,6 +285,8 @@ def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame, split: str = 
         "box_area_fraction": float(np.mean(area)),
         "extent_spearman": float(spearmanr(area, score)[0]),
     }
+    if lung is not None:
+        results["box_fraction_in_mask"] = float(np.mean(area_in_lung))
 
     logger.success(f"LOCALIZAÇÃO, {split} ({results['n_exams']} exames com caixas)")
     logger.info(
@@ -283,6 +297,8 @@ def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame, split: str = 
         f"Fração do calor dentro das caixas: {results['energy_in_boxes']:.1%} "
         f"(acaso: {results['box_area_fraction']:.1%})"
     )
+    if lung is not None:
+        logger.info(f"Acaso dentro da máscara dos pulmões: {results['box_fraction_in_mask']:.1%}")
     logger.info(f"Correlação score × área da lesão (Spearman): {results['extent_spearman']:.2f}")
 
     return results

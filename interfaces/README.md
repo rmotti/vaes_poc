@@ -17,6 +17,8 @@ Ao revelar os laudos, a análise identifica acertos, falsos alertas e falsos neg
 
 Veja o [guia detalhado do projeto](../docs/07-guia-do-projeto.md) para entender o experimento, o cálculo do score e os limites dos resultados.
 
+> ⚠️ 18/10/2026: os dados foram regenerados com os modelos da v3 (`rsna_pa_v3` e `rsna_ap_pa_v3`): normalização de intensidade e mapas restritos à máscara dos pulmões. A imagem "original" mostrada é o exame normalizado, como o modelo o vê. Ver [docs/09-resultados-v3.md](../docs/09-resultados-v3.md).
+
 ## Ver localmente
 
 Precisa do Node.js 20 ou mais novo. Dentro de `interfaces/`:

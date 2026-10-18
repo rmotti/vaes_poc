@@ -2,25 +2,16 @@
 
 Um **Autoencoder Variacional (VAE)** treinado **somente com raios-X normais** consegue apontar quais exames fogem do padrão, indicar onde está a alteração e reordenar uma fila de exames por prioridade?
 
-[![Abrir no Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rmotti/vaes_poc/blob/main/notebooks/poc_vae_raiox.ipynb)
-
 ## Como rodar
 
-### Forma 1: notebook no Google Colab
-
-É a versão didática e a primeira versão da PoC, feita com o PneumoniaMNIST (raios-X pediátricos, 64×64 px). Explica cada etapa: fundamentação, arquitetura, treino, avaliação e análise de erros.
-
-1. Abra o notebook no Colab pelo botão acima.
-2. *Ambiente de execução → Alterar o tipo de ambiente de execução → GPU (T4)*.
-3. *Executar tudo*. Leva cerca de 5–10 minutos com GPU. Os dados são baixados automaticamente.
-
-### Forma 2: pipeline local com o RSNA
-
-O código do notebook foi reorganizado em um pacote (`module_vae`) no padrão
-[Cookiecutter Data Science](https://cookiecutter-data-science.drivendata.org/) e aplicado ao
+O pipeline é um pacote Python (`module_vae`), no padrão
+[Cookiecutter Data Science](https://cookiecutter-data-science.drivendata.org/), que usa o
 [RSNA Pneumonia Detection Challenge](https://www.kaggle.com/competitions/rsna-pneumonia-detection-challenge):
 26.684 raios-X de adultos, com três classes (normal, opacidade pulmonar e anormal sem
 opacidade) e caixas marcando as opacidades.
+
+> ⚠️ 18/10/2026: o EDA mostrou que 1.276 desses exames são de menores de 18 anos e 5 têm
+> idades impossíveis. A partir da v2, eles ficam fora do escopo (ver [Versões](#versões)).
 
 **Pré-requisitos:**
 
@@ -45,6 +36,38 @@ Para avaliar um raio-X qualquer (png/jpg, frontal) com o modelo treinado:
 
 ```bash
 uv run python -m module_vae.inference --image caminho/do/exame.png
+```
+
+> ⚠️ 18/10/2026: a partir da v2, `make train` e `make train_ap_pa` aplicam a higiene dos
+> dados e gravam numa pasta por versão (`rsna_pa_v2`, `rsna_pa_v3`...), escolhida pela
+> variável `VERSION` (padrão `v2`). O pipeline não grava numa pasta que já existe, então
+> as pastas da v1 ficam protegidas. Para a configuração final (v3):
+>
+> ```bash
+> uv run python -m module_vae.main --normalize --lung-mask --version v3 --label v3-final
+> uv run python -m module_vae.inference --run rsna_pa_v3 --image caminho/do/exame.png
+> ```
+
+Opções acrescentadas depois da v1 (todas em `uv run python -m module_vae.main --help`):
+
+| Opção | O que faz |
+|---|---|
+| `--version v3` | pasta dos resultados (`models/rsna_pa_v3`, `reports/rsna_pa_v3`) |
+| `--label nome` | nome da execução no MLflow |
+| `--no-hygiene` | reproduz os dados da v1 (com crianças, duplicata e idades inválidas) |
+| `--normalize` | normalização de intensidade por imagem (ablação B, usada na v3) |
+| `--lung-mask` | score e mapa de calor só dentro da máscara dos pulmões (ablação C1, usada na v3) |
+| `--crop-borders` | recorte das molduras pretas (ablação A, rejeitada) |
+| `--seed 1` | semente do VAE principal, para medir a variação entre treinos |
+| `--overwrite` | permite gravar por cima de uma versão que já existe |
+
+Comandos acrescentados:
+
+```bash
+make mlflow         # interface do MLflow em http://127.0.0.1:5001 (experimentos rsna_pa e rsna_ap_pa)
+make export         # gera os dados da demo (interfaces/public/data) a partir dos modelos da v3
+uv run python -m module_vae.modeling.compare_runs --candidates abl-A-recorte,abl-B-normalizacao
+                    # aplica a regra das ablações às execuções do MLflow
 ```
 
 **Desenho do experimento:**
@@ -75,6 +98,26 @@ Cada execução salva os resultados na sua pasta (`rsna_pa` ou `rsna_ap_pa`):
 | `reports/<execução>/method_comparison.csv` | AUC do VAE e das alternativas |
 | `reports/<execução>/figures/*.png` | curvas de treino, escolha de σ, ROC, mapas de calor com as caixas, galeria de erros, curva de ganho |
 
+A partir da v2, cada execução também salva `reports/<execução>/val_predictions.csv` (scores
+da validação), `excluded.csv` (exames fora do escopo) e, com `--lung-mask`,
+`models/<execução>/lung_mask.npy`. A tabela de limiares ganhou F1, acurácia e a referência
+"normal para todos".
+
+## Versões
+
+Cada versão tem pastas próprias em `models/` e `reports/`, uma execução no MLflow e um
+documento em `docs/`. As anteriores não são sobrescritas. A linha do tempo completa está em
+[docs/README.md](docs/README.md).
+
+| Versão | O que mudou | AUC VAE (teste, só PA) | Fila (de 51) | Documento |
+|---|---|---|---|---|
+| v1 | pipeline do RSNA, só PA, 128 px | 0,757 | 27 | [docs/04](docs/04-resultados-rsna.md) |
+| v2 | + higiene: só adultos, sem duplicata, sem idades impossíveis; métricas novas | 0,769 | 27 | [docs/07](docs/07-higiene-v2.md) |
+| v3 | + normalização de intensidade e máscara dos pulmões (escolhidas por ablação, só com a validação) | **0,804** | **23,5** | [docs/08](docs/08-ablacoes.md), [docs/09](docs/09-resultados-v3.md) |
+
+Na v3, o autoencoder comum (0,805) e o PCA (0,808) ficam empatados com o VAE: o ganho veio
+do pré-processamento, não da parte variacional. A CNN supervisionada fica em 0,857.
+
 ## Estrutura
 
 ```
@@ -84,11 +127,9 @@ Cada execução salva os resultados na sua pasta (`rsna_pa` ou `rsna_ap_pa`):
 │   ├── raw/rsna           <- arquivos do Kaggle (não versionados)
 │   └── processed          <- imagens redimensionadas (não versionadas)
 ├── models                 <- modelos treinados e metadados, uma pasta por execução
-├── notebooks
-│   └── poc_vae_raiox.ipynb   <- notebook completo (forma 1)
 ├── reports                <- métricas, tabelas e figuras, uma pasta por execução
 ├── tests                  <- testes do pacote (pytest)
-└── module_vae             <- código do pipeline (forma 2)
+└── module_vae             <- código do pipeline
     ├── config.py          <- caminhos, hiperparâmetros e dispositivo (CPU/GPU)
     ├── dataset.py         <- download do RSNA e leitura dos DICOMs
     ├── features.py        <- do resíduo de reconstrução ao score e ao mapa de calor
@@ -106,24 +147,13 @@ Cada execução salva os resultados na sua pasta (`rsna_pa` ou `rsna_ap_pa`):
         └── ablation.py       <- experimentos com hiperparâmetros
 ```
 
-Onde cada seção do notebook foi parar:
-
-| Seção do notebook | Módulo |
-|---|---|
-| 2. Configuração | `config.py` |
-| 3. Dados | `dataset.py`, `modeling/split.py` |
-| 4. Arquitetura | `modeling/architecture.py` |
-| 5. Treinamento | `modeling/train.py` |
-| 7. Score de anomalia | `features.py`, `modeling/calibration.py` |
-| 8.1–8.4 Avaliação, limiar e fila | `modeling/evaluate.py` |
-| 8.2 Comparação com alternativas | `modeling/baselines.py` |
-| 8.5 Hiperparâmetros | `modeling/ablation.py` |
-| 9. Análise de erros | figuras `false_positives.png` e `false_negatives.png` |
-| 11. Salvando o modelo | `modeling/train.py` (`save_model`), `modeling/predict.py` (`load_model`) |
+> ⚠️ 18/10/2026: módulos acrescentados depois da v1: `preprocessing.py` (recorte,
+> normalização e máscara dos pulmões), `tracking.py` (MLflow), `export.py` (dados da demo) e
+> `modeling/compare_runs.py` (regra das ablações). A demo fica em `interfaces/` e os
+> insumos da apresentação em `docs/`.
 
 ## Dados
 
-- **Pipeline:** [RSNA Pneumonia Detection Challenge](https://www.kaggle.com/competitions/rsna-pneumonia-detection-challenge) (RSNA, NIH, Society of Thoracic Radiology e MD.ai). O uso segue as regras da competição no Kaggle.
-- **Notebook:** PneumoniaMNIST (MedMNIST v2, Yang et al., 2023), derivado de Kermany et al. (2018), licença CC BY 4.0.
+- [RSNA Pneumonia Detection Challenge](https://www.kaggle.com/competitions/rsna-pneumonia-detection-challenge) (RSNA, NIH, Society of Thoracic Radiology e MD.ai). O uso segue as regras da competição no Kaggle.
 
 Não é um dispositivo médico e não deve ser usado para diagnóstico.

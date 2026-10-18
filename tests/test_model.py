@@ -20,7 +20,7 @@ def test_vae_output_shapes():
     assert x_rec.min() >= 0 and x_rec.max() <= 1
 
 
-def test_64px_network_is_the_one_from_the_notebook():
+def test_64px_network_has_four_blocks():
     assert channels_for(64) == [1, 32, 64, 128, 256]
     assert sum(p.numel() for p in VAE(latent_dim=8, image_size=64).parameters()) == 1_481_809
 
@@ -76,7 +76,7 @@ def test_localization_of_a_map_concentrated_in_the_box():
 
 @pytest.mark.parametrize("sigma", [1, 3, 8, 16])
 def test_separable_smoothing_matches_torchvision_blur(sigma):
-    # O filtro separável precisa dar o mesmo resultado do gaussian_blur usado no notebook.
+    # O filtro separável precisa dar o mesmo resultado do gaussian_blur 2D do torchvision.
     img = torch.rand(5, 1, 128, 128)
 
     expected = TF.gaussian_blur(img, kernel_size=int(4 * sigma) | 1, sigma=sigma)
