@@ -1,9 +1,18 @@
-"""Avaliação final no conjunto de teste e simulação da fila de triagem (Seção 8)."""
+"""Avaliação final no conjunto de teste e simulação da fila de triagem (Seção 8).
+
+Além das métricas do notebook, as caixas e as classes do RSNA permitem três avaliações:
+
+- outras anomalias: o VAE sinaliza exames anormais que não são pneumonia?
+- localização: o mapa de calor aponta a lesão marcada pelo radiologista?
+- incidência: o score mede a doença ou só a diferença entre exames AP e PA?
+"""
 
 from loguru import logger
 import numpy as np
 import pandas as pd
+from scipy.stats import spearmanr
 from sklearn.metrics import average_precision_score, confusion_matrix, roc_auc_score
+import torch
 
 
 def metrics_at_threshold(y: np.ndarray, score: np.ndarray, threshold: float) -> dict:
@@ -24,7 +33,7 @@ def evaluate_model(y_test: np.ndarray, score_test: np.ndarray, threshold: float)
 
     - AUC-ROC: separação geral, independente de limiar.
     - AP (precisão média): mais informativa com classes desbalanceadas. A AP de um score
-      aleatório é a proporção de positivos (62,5% no teste), não 0,5.
+      aleatório é a proporção de positivos no teste, não 0,5.
     - Sensibilidade e especificidade no limiar calibrado na validação.
     """
     results = {
@@ -91,13 +100,13 @@ def simulate_queue(
 ) -> dict:
     """Simula filas realistas e compara a ordem de chegada com a ordem pelo score.
 
-    O teste tem 62,5% de pneumonias, muito acima de uma fila de pronto-atendimento. Aqui
-    sorteamos filas de queue_size exames com a prevalência dada e medimos onde as
-    pneumonias ficam em cada ordenação.
+    A proporção de positivos no teste não é a de uma fila real. Aqui sorteamos filas de
+    queue_size exames com a prevalência dada e medimos onde os positivos (pneumonias ou
+    opacidades) ficam em cada ordenação.
 
     Returns:
-        dict: Posição média de uma pneumonia na fila (1 a queue_size) e quantas
-            pneumonias aparecem entre os 10 primeiros, nas duas ordens.
+        dict: Posição média de um positivo na fila (1 a queue_size) e quantos positivos
+            aparecem entre os 10 primeiros, nas duas ordens.
     """
     rng = np.random.default_rng(seed)
     normal_idx, pneumonia_idx = np.where(y == 0)[0], np.where(y == 1)[0]
@@ -126,14 +135,116 @@ def simulate_queue(
         "top10_model": float(np.mean(top10_model)),
     }
 
-    logger.success(f"FILA SIMULADA ({queue_size} exames, {prevalence:.0%} de pneumonias)")
+    logger.success(f"FILA SIMULADA ({queue_size} exames, {prevalence:.0%} de positivos)")
     logger.info(
-        "Posição média de uma pneumonia: "
+        "Posição média de um positivo: "
         f"{results['mean_position_arrival']:.0f} → {results['mean_position_model']:.0f}"
     )
     logger.info(
-        f"Pneumonias entre os 10 primeiros: {results['top10_arrival']:.1f} → "
+        f"Positivos entre os 10 primeiros: {results['top10_arrival']:.1f} → "
         f"{results['top10_model']:.1f}"
     )
+
+    return results
+
+
+def evaluate_other_anomalies(
+    score_normal: np.ndarray, score_other: np.ndarray, threshold: float
+) -> dict:
+    """O VAE sinaliza exames anormais que não são pneumonia ("anormal sem opacidade")?
+
+    σ e limiar foram escolhidos com opacidades; estes exames não influenciaram nenhuma
+    escolha. É o teste da promessa central da detecção de anomalias: sinalizar alterações
+    que o modelo nunca viu e para as quais não foi ajustado.
+    """
+    y = np.r_[np.zeros(len(score_normal)), np.ones(len(score_other))]
+    results = {
+        "roc_auc_other": float(roc_auc_score(y, np.r_[score_normal, score_other])),
+        "sensitivity_other": float((score_other >= threshold).mean()),
+        "n_other": len(score_other),
+    }
+
+    logger.success("OUTRAS ANOMALIAS (anormal sem opacidade × normal)")
+    logger.info(f"AUC-ROC: {results['roc_auc_other']:.3f}")
+    logger.info(f"Sinalizados no limiar: {results['sensitivity_other']:.1%}")
+
+    return results
+
+
+def evaluate_localization(maps: torch.Tensor, boxes: pd.DataFrame) -> dict:
+    """O mapa de calor aponta a lesão? Usa as caixas marcadas pelos radiologistas.
+
+    - pointing game: o pixel mais quente do mapa cai dentro de alguma caixa?
+    - energia nas caixas: que fração do "calor" total do mapa fica dentro das caixas?
+
+    Um mapa sem informação (uniforme ou sorteado) acerta, em média, a fração da imagem
+    coberta pelas caixas: essa é a referência do acaso para as duas métricas.
+
+    Também mede se o score acompanha a extensão da lesão (área das caixas), uma
+    aproximação grosseira de gravidade que o dataset permite testar.
+
+    Args:
+        maps (torch.Tensor): Mapas de calor do teste (N, 1, H, W).
+        boxes (pd.DataFrame): Caixas (test_index, x, y, width, height) em pixels.
+    """
+    size = maps.shape[-1]
+    hits, energy, area, score = [], [], [], []
+    for i, group in boxes.groupby("test_index"):
+        mask = np.zeros((size, size), dtype=bool)
+        for box in group.itertuples():
+            x0, y0 = max(int(box.x), 0), max(int(box.y), 0)
+            x1 = min(int(np.ceil(box.x + box.width)), size)
+            y1 = min(int(np.ceil(box.y + box.height)), size)
+            mask[y0:y1, x0:x1] = True
+
+        heatmap = maps[i, 0].numpy()
+        hits.append(mask.flat[heatmap.argmax()])
+        energy.append(heatmap[mask].sum() / heatmap.sum())
+        area.append(mask.mean())
+        score.append(heatmap.mean())
+
+    results = {
+        "n_exams": len(hits),
+        "pointing_game": float(np.mean(hits)),
+        "energy_in_boxes": float(np.mean(energy)),
+        "box_area_fraction": float(np.mean(area)),
+        "extent_spearman": float(spearmanr(area, score)[0]),
+    }
+
+    logger.success(f"LOCALIZAÇÃO ({results['n_exams']} exames com caixas)")
+    logger.info(
+        f"Pixel mais quente dentro da caixa: {results['pointing_game']:.1%} "
+        f"(acaso: {results['box_area_fraction']:.1%})"
+    )
+    logger.info(
+        f"Fração do calor dentro das caixas: {results['energy_in_boxes']:.1%} "
+        f"(acaso: {results['box_area_fraction']:.1%})"
+    )
+    logger.info(f"Correlação score × área da lesão (Spearman): {results['extent_spearman']:.2f}")
+
+    return results
+
+
+def evaluate_views(y: np.ndarray, score: np.ndarray, views: np.ndarray) -> dict:
+    """Separa o efeito da incidência (AP × PA) do efeito da doença.
+
+    - AUC dentro de cada incidência: compara só exames da mesma incidência.
+    - AUC "AP × PA" entre normais: se for alta, o score mede a incidência, não a doença.
+    """
+    results = {}
+    for view in np.unique(views):
+        mask = views == view
+        if len(np.unique(y[mask])) == 2:
+            results[f"roc_auc_{view}"] = float(roc_auc_score(y[mask], score[mask]))
+
+    normal = y == 0
+    if len(np.unique(views[normal])) == 2:
+        results["roc_auc_ap_vs_pa_normals"] = float(
+            roc_auc_score(views[normal] == "AP", score[normal])
+        )
+
+    logger.success("INCIDÊNCIA")
+    for name, value in results.items():
+        logger.info(f"{name}: {value:.3f}")
 
     return results
