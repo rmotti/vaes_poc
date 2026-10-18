@@ -1,9 +1,11 @@
-"""Figuras do pipeline, com o mesmo estilo do notebook. Todas são salvas em reports/figures."""
+"""Figuras do pipeline, com o mesmo estilo do notebook. Cada execução salva as suas em
+reports/<execução>/figures."""
 
 from pathlib import Path
 
 from loguru import logger
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -11,11 +13,9 @@ from sklearn.metrics import precision_recall_curve, roc_curve
 import torch
 from torchvision.utils import make_grid
 
-from module_vae.config import FIGURES_DIR
-
 # Cores fixas por significado em todas as figuras
 NORMAL_COLOR = "#2a78d6"  # azul    → exames normais (e o VAE nas comparações)
-PNEUMONIA_COLOR = "#eb6834"  # laranja → exames com pneumonia
+POSITIVE_COLOR = "#eb6834"  # laranja → exames com opacidade
 NEUTRAL_COLOR = "#a3a29b"  # cinza   → referências e baselines
 TEXT_COLOR_2 = "#52514e"
 RULE_COLOR = "#c3c2b7"
@@ -24,8 +24,6 @@ RULE_COLOR = "#c3c2b7"
 HEATMAP_CMAP = LinearSegmentedColormap.from_list(
     "calor", [(0.92, 0.41, 0.20, 0.0), (0.92, 0.41, 0.20, 0.55), (0.89, 0.29, 0.28, 0.95)]
 )
-
-CLASSES = [(0, NORMAL_COLOR, "normal"), (1, PNEUMONIA_COLOR, "pneumonia")]
 
 
 def apply_style() -> None:
@@ -73,7 +71,7 @@ def show_grid(images: torch.Tensor, n_cols: int, ax: plt.Axes, title: str | None
 def plot_training_curves(
     history: dict[str, list[float]],
     kl_warmup_epochs: int,
-    path: Path = FIGURES_DIR / "training_curves.png",
+    path: Path,
 ) -> None:
     epochs = np.arange(1, len(history["rec_train"]) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.6))
@@ -98,9 +96,7 @@ def plot_training_curves(
     save_figure(fig, path)
 
 
-def plot_generated_samples(
-    samples: torch.Tensor, path: Path = FIGURES_DIR / "generated_samples.png"
-) -> None:
+def plot_generated_samples(samples: torch.Tensor, path: Path) -> None:
     fig, ax = plt.subplots(figsize=(8, 2.2))
     show_grid(samples, 8, ax, "Raios-X sintéticos: decoder aplicado a z ~ N(0, I)")
     save_figure(fig, path)
@@ -110,7 +106,7 @@ def plot_sigma_selection(
     auc_val: dict[float, float],
     auc_test: dict[float, float],
     chosen_sigma: float,
-    path: Path = FIGURES_DIR / "sigma_selection.png",
+    path: Path,
 ) -> None:
     sigmas = list(auc_val)
     fig, ax = plt.subplots(figsize=(7.5, 3.8))
@@ -144,7 +140,7 @@ def plot_sigma_selection(
 
 
 def plot_test_evaluation(
-    y: np.ndarray, score: np.ndarray, path: Path = FIGURES_DIR / "test_evaluation.png"
+    y: np.ndarray, score: np.ndarray, path: Path, positive_name: str = "opacidade"
 ) -> None:
     """Curva ROC, curva precisão × revocação e distribuição do score no teste."""
     fpr, tpr, _ = roc_curve(y, score)
@@ -164,7 +160,7 @@ def plot_test_evaluation(
     axes[1].set_ylabel("precisão")
 
     bins = np.linspace(0, np.percentile(score, 99), 40)
-    for label, color, name in CLASSES:
+    for label, color, name in [(0, NORMAL_COLOR, "normal"), (1, POSITIVE_COLOR, positive_name)]:
         axes[2].hist(
             score[y == label], bins=bins, color=color, alpha=0.55, density=True, label=name
         )
@@ -186,22 +182,40 @@ def plot_heatmaps(
     title: str,
     path: Path,
     labels: np.ndarray | None = None,
+    boxes: pd.DataFrame | None = None,
 ) -> None:
     """Original, reconstrução e mapa de calor de alguns exames.
 
     A escala de cor (vmax) é a mesma para todos os exames: normalizar por exame faria
     qualquer exame parecer "quente".
+
+    Args:
+        labels (np.ndarray | None): Nome da classe de cada exame ("normal", "opacidade"...).
+        boxes (pd.DataFrame | None): Caixas das lesões (test_index, x, y, width, height),
+            desenhadas em azul sobre o mapa de calor.
     """
     fig, axes = plt.subplots(3, len(indices), figsize=(2.1 * len(indices), 6.6), squeeze=False)
     for c, i in enumerate(indices):
         header = f"score {scores[i] * 1e3:.2f}"
         if labels is not None:
-            header = f"{'pneumonia' if labels[i] == 1 else 'normal'}\n{header}"
+            header = f"{labels[i]}\n{header}"
         axes[0, c].imshow(x[i, 0], cmap="gray", vmin=0, vmax=1)
         axes[0, c].set_title(header, fontsize=9, fontweight="normal")
         axes[1, c].imshow(x_rec[i, 0], cmap="gray", vmin=0, vmax=1)
         axes[2, c].imshow(x[i, 0], cmap="gray", vmin=0, vmax=1)
         axes[2, c].imshow(maps[i, 0], cmap=HEATMAP_CMAP, vmin=0, vmax=vmax)
+        if boxes is not None:
+            for box in boxes[boxes["test_index"] == i].itertuples():
+                axes[2, c].add_patch(
+                    Rectangle(
+                        (box.x, box.y),
+                        box.width,
+                        box.height,
+                        fill=False,
+                        edgecolor=NORMAL_COLOR,
+                        lw=1.2,
+                    )
+                )
         for r in range(3):
             axes[r, c].axis("off")
 
@@ -213,17 +227,15 @@ def plot_heatmaps(
     save_figure(fig, path)
 
 
-def plot_method_comparison(
-    table: pd.DataFrame, path: Path = FIGURES_DIR / "method_comparison.png"
-) -> None:
-    """Barras de AUC no teste; hachurado = usa rótulos de pneumonia."""
+def plot_method_comparison(table: pd.DataFrame, path: Path) -> None:
+    """Barras de AUC no teste; hachurado = usa rótulos da doença."""
     names = list(table.index)[::-1]
     fig, ax = plt.subplots(figsize=(8.5, 4.2))
     for k, name in enumerate(names):
         row = table.loc[name]
         if name == "VAE":
             color, hatch = NORMAL_COLOR, None
-        elif row["uses_pneumonia_labels"]:
+        elif row["uses_labels"]:
             color, hatch = "#e8e7e3", "///"
         else:
             color, hatch = NEUTRAL_COLOR, None
@@ -252,15 +264,15 @@ def plot_method_comparison(
     ax.set_xlim(0.4, 1.0)
     ax.grid(axis="y", visible=False)
     ax.set_xlabel("AUC-ROC no conjunto de teste")
-    ax.set_title("Comparação de métodos (hachurado = usa rótulos de pneumonia)")
+    ax.set_title("Comparação de métodos (hachurado = usa rótulos da doença)")
     save_figure(fig, path)
 
 
 def plot_gain_curve(
-    y: np.ndarray, score: np.ndarray, path: Path = FIGURES_DIR / "gain_curve.png"
+    y: np.ndarray, score: np.ndarray, path: Path, positive_name: str = "opacidades"
 ) -> None:
-    """Revisando os primeiros X% da fila ordenada pelo score, que fração das pneumonias
-    é encontrada?"""
+    """Revisando os primeiros X% da fila ordenada pelo score, que fração dos exames
+    alterados é encontrada?"""
     order = np.argsort(-score)
     reviewed = np.arange(1, len(order) + 1) / len(order)
     found = np.cumsum(y[order]) / y.sum()
@@ -272,7 +284,7 @@ def plot_gain_curve(
     ax.plot([0, 1], [0, 1], color=NEUTRAL_COLOR, linestyle=":", label="ordem de chegada")
     k = int(0.3 * len(order))
     ax.annotate(
-        f"revisando 30% da fila,\nencontra {found[k - 1]:.0%} das pneumonias",
+        f"revisando 30% da fila,\nencontra {found[k - 1]:.0%} das {positive_name}",
         xy=(0.3, found[k - 1]),
         xytext=(0.36, 0.2),
         fontsize=9,
@@ -280,15 +292,13 @@ def plot_gain_curve(
         arrowprops={"arrowstyle": "-", "color": NORMAL_COLOR, "lw": 1},
     )
     ax.set_xlabel("fração da fila revisada")
-    ax.set_ylabel("fração das pneumonias encontradas")
+    ax.set_ylabel(f"fração das {positive_name} encontradas")
     ax.set_title("Curva de ganho da fila ordenada pelo VAE (teste)")
     ax.legend(loc="lower right")
     save_figure(fig, path)
 
 
-def plot_ablation(
-    latent: pd.Series, beta: pd.Series, path: Path = FIGURES_DIR / "ablation.png"
-) -> None:
+def plot_ablation(latent: pd.Series, beta: pd.Series, path: Path) -> None:
     """AUC de validação em função do tamanho do latente e de β."""
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.6), sharey=True)
     for ax, results, name in [
