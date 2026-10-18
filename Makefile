@@ -62,16 +62,22 @@ create_environment:
 #################################################################################
 
 
-## Download PneumoniaMNIST (64 px) into data/raw
+## Download RSNA from Kaggle and cache the images at 128 px (needs a Kaggle token)
 .PHONY: data
 data: requirements
 	$(PYTHON_INTERPRETER) -m module_vae.dataset
 
 
-## Full pipeline: train -> calibrate -> evaluate -> compare (5-10 min)
+## Full pipeline on PA exams: train -> calibrate -> evaluate -> compare
 .PHONY: train
 train:
 	$(PYTHON_INTERPRETER) -m module_vae.main
+
+
+## Same pipeline with AP and PA exams, to expose the AP/PA shortcut
+.PHONY: train_ap_pa
+train_ap_pa:
+	$(PYTHON_INTERPRETER) -m module_vae.main --views AP,PA
 
 
 ## Quick check of the pipeline (2 epochs, 1 seed, no baselines)
