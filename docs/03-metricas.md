@@ -2,6 +2,8 @@
 
 Números do modelo só PA no RSNA (teste: 1.082 normais e 203 opacidades).
 
+> ⚠️ 18/10/2026: estes são os números da v1. Os da v3 (AUC 0,804, AP 0,541, sensibilidade 46% com especificidade 94% no p95, F1 0,52, precision@10 1,00) estão em [09-resultados-v3.md](09-resultados-v3.md). As armadilhas abaixo continuam valendo: na v3, a acurácia no p95 é 0,866 contra 0,844 de "normal para todos".
+
 ## A tarefa de treino é diferente da tarefa avaliada
 
 | | O que mede | Onde aparece |

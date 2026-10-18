@@ -8,6 +8,8 @@ Site em Next.js (React + TypeScript) com três telas:
 
 Os dados são reais: exames do conjunto de teste do RSNA, com scores, reconstruções e mapas pré-calculados pelos modelos da v2. As três abas usam o modelo treinado só com PA (`rsna_pa_v2`); o botão **AP + PA** da fila troca para o modelo treinado com as duas incidências (`rsna_ap_pa_v2`), que mostra o atalho da incidência. O que ainda é simulado está marcado na própria tela (o gerador mexe um eixo por vez, e o QR code é ilustrativo).
 
+> ⚠️ 18/10/2026: os dados foram regenerados com os modelos da v3 (`rsna_pa_v3` e `rsna_ap_pa_v3`): normalização de intensidade e mapas restritos à máscara dos pulmões. A imagem "original" mostrada é o exame normalizado, como o modelo o vê. Ver [docs/09-resultados-v3.md](../docs/09-resultados-v3.md).
+
 ## Ver localmente
 
 Precisa do Node.js 20 ou mais novo. Dentro de `interfaces/`:

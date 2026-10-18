@@ -238,6 +238,14 @@ O split é feito por paciente (70/15/15), estratificado por classe e incidência
 | 11 | Classes desbalanceadas | 15,8% de opacidades no teste PA | acurácia enganosa | ✅ AUC, AP e métricas do topo da fila |
 | 12 | Redução de 1024 para 128 px | lesões com ~27 px de largura em 128 px | lesões muito pequenas se perdem | ✅ 128 px como compromisso; 💡 testar 256 px |
 
+> ⚠️ 18/10/2026: o que aconteceu com cada proposta (💡):
+>
+> - **2, 3 e 4:** tratados na v2. A duplicata saiu, as idades impossíveis viraram ausentes, e os menores de 18 ficaram fora do escopo. Ver [07-higiene-v2.md](07-higiene-v2.md).
+> - **6:** a AUC por equipamento entrou na v2; a normalização de intensidade (ablação B) foi **aceita** e está na v3. O viés de equipamento diminuiu, mas não sumiu.
+> - **7:** o recorte das bordas (ablação A) foi **rejeitado**: não melhorou a AUC.
+> - **8:** a máscara dos pulmões (ablação C1) foi **aceita** e está na v3, como máscara média. A segmentação por exame ficou como trabalho futuro. Ver [08-ablacoes.md](08-ablacoes.md).
+> - **12:** 256 px não foi testado.
+
 ## Conclusões para a modelagem
 
 1. **Os rótulos são confiáveis** (consistentes e completos); os problemas estão na **composição** do dataset.

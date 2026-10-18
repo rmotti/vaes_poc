@@ -22,6 +22,9 @@ O código do notebook foi reorganizado em um pacote (`module_vae`) no padrão
 26.684 raios-X de adultos, com três classes (normal, opacidade pulmonar e anormal sem
 opacidade) e caixas marcando as opacidades.
 
+> ⚠️ 18/10/2026: o EDA mostrou que 1.276 desses exames são de menores de 18 anos e 5 têm
+> idades impossíveis. A partir da v2, eles ficam fora do escopo (ver [Versões](#versões)).
+
 **Pré-requisitos:**
 
 - [uv](https://docs.astral.sh/uv/) instalado. O pipeline usa a GPU automaticamente quando existe (CUDA ou Apple Silicon/MPS).
@@ -45,6 +48,38 @@ Para avaliar um raio-X qualquer (png/jpg, frontal) com o modelo treinado:
 
 ```bash
 uv run python -m module_vae.inference --image caminho/do/exame.png
+```
+
+> ⚠️ 18/10/2026: a partir da v2, `make train` e `make train_ap_pa` aplicam a higiene dos
+> dados e gravam numa pasta por versão (`rsna_pa_v2`, `rsna_pa_v3`...), escolhida pela
+> variável `VERSION` (padrão `v2`). O pipeline não grava numa pasta que já existe, então
+> as pastas da v1 ficam protegidas. Para a configuração final (v3):
+>
+> ```bash
+> uv run python -m module_vae.main --normalize --lung-mask --version v3 --label v3-final
+> uv run python -m module_vae.inference --run rsna_pa_v3 --image caminho/do/exame.png
+> ```
+
+Opções acrescentadas depois da v1 (todas em `uv run python -m module_vae.main --help`):
+
+| Opção | O que faz |
+|---|---|
+| `--version v3` | pasta dos resultados (`models/rsna_pa_v3`, `reports/rsna_pa_v3`) |
+| `--label nome` | nome da execução no MLflow |
+| `--no-hygiene` | reproduz os dados da v1 (com crianças, duplicata e idades inválidas) |
+| `--normalize` | normalização de intensidade por imagem (ablação B, usada na v3) |
+| `--lung-mask` | score e mapa de calor só dentro da máscara dos pulmões (ablação C1, usada na v3) |
+| `--crop-borders` | recorte das molduras pretas (ablação A, rejeitada) |
+| `--seed 1` | semente do VAE principal, para medir a variação entre treinos |
+| `--overwrite` | permite gravar por cima de uma versão que já existe |
+
+Comandos acrescentados:
+
+```bash
+make mlflow         # interface do MLflow em http://127.0.0.1:5001 (experimentos rsna_pa e rsna_ap_pa)
+make export         # gera os dados da demo (interfaces/public/data) a partir dos modelos da v3
+uv run python -m module_vae.modeling.compare_runs --candidates abl-A-recorte,abl-B-normalizacao
+                    # aplica a regra das ablações às execuções do MLflow
 ```
 
 **Desenho do experimento:**
@@ -74,6 +109,26 @@ Cada execução salva os resultados na sua pasta (`rsna_pa` ou `rsna_ap_pa`):
 | `reports/<execução>/thresholds.csv` | sensibilidade e especificidade de cada limiar (validação × teste) |
 | `reports/<execução>/method_comparison.csv` | AUC do VAE e das alternativas |
 | `reports/<execução>/figures/*.png` | curvas de treino, escolha de σ, ROC, mapas de calor com as caixas, galeria de erros, curva de ganho |
+
+A partir da v2, cada execução também salva `reports/<execução>/val_predictions.csv` (scores
+da validação), `excluded.csv` (exames fora do escopo) e, com `--lung-mask`,
+`models/<execução>/lung_mask.npy`. A tabela de limiares ganhou F1, acurácia e a referência
+"normal para todos".
+
+## Versões
+
+Cada versão tem pastas próprias em `models/` e `reports/`, uma execução no MLflow e um
+documento em `docs/`. As anteriores não são sobrescritas. A linha do tempo completa está em
+[docs/README.md](docs/README.md).
+
+| Versão | O que mudou | AUC VAE (teste, só PA) | Fila (de 51) | Documento |
+|---|---|---|---|---|
+| v1 | pipeline do RSNA, só PA, 128 px | 0,757 | 27 | [docs/04](docs/04-resultados-rsna.md) |
+| v2 | + higiene: só adultos, sem duplicata, sem idades impossíveis; métricas novas | 0,769 | 27 | [docs/07](docs/07-higiene-v2.md) |
+| v3 | + normalização de intensidade e máscara dos pulmões (escolhidas por ablação, só com a validação) | **0,804** | **23,5** | [docs/08](docs/08-ablacoes.md), [docs/09](docs/09-resultados-v3.md) |
+
+Na v3, o autoencoder comum (0,805) e o PCA (0,808) ficam empatados com o VAE: o ganho veio
+do pré-processamento, não da parte variacional. A CNN supervisionada fica em 0,857.
 
 ## Estrutura
 
@@ -105,6 +160,11 @@ Cada execução salva os resultados na sua pasta (`rsna_pa` ou `rsna_ap_pa`):
         ├── predict.py        <- reconstrução, score e posição na fila
         └── ablation.py       <- experimentos com hiperparâmetros
 ```
+
+> ⚠️ 18/10/2026: módulos acrescentados depois da v1: `preprocessing.py` (recorte,
+> normalização e máscara dos pulmões), `tracking.py` (MLflow), `export.py` (dados da demo) e
+> `modeling/compare_runs.py` (regra das ablações). A demo fica em `interfaces/` e os
+> insumos da apresentação em `docs/`.
 
 Onde cada seção do notebook foi parar:
 

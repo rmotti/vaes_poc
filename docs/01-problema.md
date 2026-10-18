@@ -36,6 +36,8 @@ Em serviços de radiologia com muita demanda, os exames de tórax esperam na fil
 - **Outros hospitais e equipamentos:** o limiar teria que ser recalibrado, porque qualquer mudança no "normal" vira alarme.
 - **"Qualquer doença":** só foi testado com pneumonia/opacidade e com os "anormais sem opacidade" do RSNA (AUC 0,69).
 
+> ⚠️ 18/10/2026: na v3, "anormal sem opacidade" × normal subiu para AUC 0,74, e a correlação score × área da lesão ficou em −0,05 (continua sem medir gravidade). Ver [09-resultados-v3.md](09-resultados-v3.md).
+
 ## Como falar
 
 - Correto: "O VAE ordena a fila pelo grau de desvio em relação ao padrão normal. Os exames com maior suspeita de alteração são vistos primeiro."
