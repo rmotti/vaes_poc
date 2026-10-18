@@ -32,10 +32,14 @@ make export   # uv run python -m module_vae.export
 
 Ela contém as imagens (`data/pa/`, `data/ap_pa/`) e o `data.js` com scores, mapas e coordenadas. Rode de novo depois de treinar outra vez: a pasta é apagada e recriada. Se o modelo AP + PA não existir, o botão fica desligado.
 
-A pasta **está no `.gitignore`**: as imagens vêm do RSNA Pneumonia Detection Challenge, e as regras da competição no Kaggle precisam ser conferidas antes de publicar essas imagens num repositório ou site público.
+### Uso das imagens e atribuição
+
+Os termos de uso do RSNA Pneumonia Detection Challenge permitem usar e redistribuir as imagens e as anotações, para fins acadêmicos ou não, desde que (1) ninguém tente identificar ou contatar os pacientes e (2) quem redistribui dê a atribuição abaixo. O rodapé do site já traz essa atribuição. O `data.js` não guarda o `patientId` dos exames: eles aparecem só como `EX-0000`.
+
+- **NIH Chest X-ray Dataset**, de onde vêm as imagens: download em <https://nihcc.app.box.com/v/ChestXray-NIHCC>; o NIH Clinical Center é o fornecedor dos dados. Citação: Xiaosong Wang, Yifan Peng, Le Lu, Zhiyong Lu, Mohammadhadi Bagheri, Ronald Summers. *ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases*. IEEE CVPR, pp. 3462–3471, 2017.
+- **RSNA-STR Pneumonia Detection Challenge**, de onde vêm os rótulos e as caixas: download em <https://www.rsna.org/rsnai/ai-image-challenge/RSNA-Pneumonia-Detection-Challenge-2018>. Citação: George Shih, Carol C. Wu, Safwan S. Halabi et al. *Augmenting the National Institutes of Health Chest Radiograph Dataset with Expert Annotations of Possible Pneumonia*. Radiology: Artificial Intelligence, 2019.
 
 ## Próximos passos
 
 - Decoder exportado para ONNX e rodando no navegador, para o gerador combinar os 8 eixos ao mesmo tempo.
-- Botão "AP + PA" na fila, com o modelo que mostra o atalho da incidência.
 - Votação da turma em tempo real no "Você × VAE", com QR code de verdade.

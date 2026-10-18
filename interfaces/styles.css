@@ -66,6 +66,8 @@ main { max-width: 1440px; margin: 0 auto; padding: 22px 28px 12px; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } }
 
 footer { color: var(--faint); font-size: 12px; text-align: center; padding: 18px; }
+footer p { margin: 0 auto 6px; max-width: 900px; }
+footer a { color: var(--muted); }
 
 /* ---------- blocos ---------- */
 .panel {
