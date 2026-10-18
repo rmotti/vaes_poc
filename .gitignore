@@ -19,6 +19,9 @@ models/**/*.pt
 models/*_quick/
 reports/*_quick/
 
+# dados do esboço da demo: imagens do RSNA (ver interfaces/README.md antes de versionar)
+interfaces/data/
+
 # rastreamento local do MLflow (make mlflow)
 mlflow.db
 mlartifacts/
