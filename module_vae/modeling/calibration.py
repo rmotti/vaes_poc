@@ -12,23 +12,33 @@ from module_vae.config import SIGMAS, THRESHOLD_PERCENTILE
 from module_vae.features import anomaly_score
 
 
+def sigmas_for(image_size: int) -> list[float]:
+    """Larguras de suavização testadas, escaladas para a resolução da imagem.
+
+    SIGMAS está em pixels de uma imagem de 64 px; em 128 px, cada σ dobra.
+    """
+    return [s * image_size / 64 for s in SIGMAS]
+
+
 def select_sigma(
     x_val: torch.Tensor,
     rec_val: torch.Tensor,
     y_val: np.ndarray,
-    sigmas: list[float] = SIGMAS,
+    sigmas: list[float] | None = None,
 ) -> tuple[float, dict[float, float]]:
     """Escolhe a largura da suavização do resíduo pela AUC na validação.
 
     Args:
-        x_val (torch.Tensor): Exames de validação (normais e pneumonias).
+        x_val (torch.Tensor): Exames de validação (normais e positivos).
         rec_val (torch.Tensor): Reconstruções desses exames.
         y_val (np.ndarray): Rótulos de validação.
-        sigmas (list[float]): Larguras testadas, em pixels.
+        sigmas (list[float] | None): Larguras testadas, em pixels. Por padrão, SIGMAS
+            escalado para a resolução de x_val.
 
     Returns:
         tuple[float, dict[float, float]]: O σ escolhido e a AUC de validação de cada σ.
     """
+    sigmas = sigmas or sigmas_for(x_val.shape[-1])
     auc_by_sigma = {s: roc_auc_score(y_val, anomaly_score(x_val, rec_val, s)) for s in sigmas}
     best_sigma = max(auc_by_sigma, key=auc_by_sigma.get)
 
