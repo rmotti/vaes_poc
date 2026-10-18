@@ -96,6 +96,10 @@ def main(
     overwrite: Annotated[
         bool, typer.Option(help="Permite gravar por cima de uma versão que já existe.")
     ] = False,
+    seed: Annotated[
+        int | None,
+        typer.Option(help="Semente do VAE principal (o dos mapas e do modelo salvo)."),
+    ] = None,
 ):
     view_list = sorted(v.strip().upper() for v in views.split(","))
     paths = RunPaths(run_name(view_list, version))
@@ -105,7 +109,9 @@ def main(
             "ou --overwrite (as pastas da v1 nunca devem ser sobrescritas)."
         )
         raise typer.Exit(1)
-    seeds = SEEDS[:n_seeds]
+    # A primeira semente é a do VAE principal; as outras só entram na comparação de métodos.
+    # Com --seed, ela vem primeiro, para medir a variação entre treinos (mapas, localização).
+    seeds = SEEDS[:n_seeds] if seed is None else [seed, *[s for s in SEEDS if s != seed]][:n_seeds]
     params = {
         "version": version,
         "hygiene": hygiene,
