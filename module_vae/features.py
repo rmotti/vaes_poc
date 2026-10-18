@@ -14,16 +14,38 @@ erro (Seção 7 do notebook). Com σ = 0, o score volta a ser o erro quadrático
 
 import numpy as np
 import torch
-import torchvision.transforms.functional as TF
+import torch.nn.functional as F
 
 
-def smooth(img: torch.Tensor, sigma: float) -> torch.Tensor:
-    """Aplica um filtro gaussiano de largura sigma em imagens (N, 1, H, W)."""
-    if sigma <= 0:
+def gaussian_kernel1d(sigma: float) -> torch.Tensor:
+    """Pesos de um filtro gaussiano 1D com tamanho ímpar ≈ 4σ, somando 1."""
+    kernel_size = int(4 * sigma) | 1
+    half = (kernel_size - 1) / 2
+    x = torch.linspace(-half, half, kernel_size)
+    kernel = torch.exp(-0.5 * (x / sigma) ** 2)
+    return kernel / kernel.sum()
+
+
+def smooth(img: torch.Tensor, sigma: float, batch_size: int = 128) -> torch.Tensor:
+    """Aplica um filtro gaussiano de largura sigma em imagens (N, 1, H, W).
+
+    O filtro gaussiano 2D é separável: um filtro 1D na horizontal seguido de outro na
+    vertical dá exatamente o mesmo resultado, com 2·k contas por pixel em vez de k². Em
+    128 px, σ chega a 16 px e o kernel a 65 × 65, então isso faz muita diferença. As
+    imagens são processadas em lotes para limitar o uso de memória.
+    """
+    if sigma <= 0 or len(img) == 0:
         return img
 
-    kernel_size = int(4 * sigma) | 1  # tamanho de kernel ímpar ≈ 4σ
-    return TF.gaussian_blur(img, kernel_size=kernel_size, sigma=sigma)
+    kernel = gaussian_kernel1d(sigma).to(img)
+    pad = len(kernel) // 2
+    horizontal, vertical = kernel.view(1, 1, 1, -1), kernel.view(1, 1, -1, 1)
+
+    out = []
+    for i in range(0, len(img), batch_size):
+        x = F.pad(img[i : i + batch_size], (pad, pad, pad, pad), mode="reflect")
+        out.append(F.conv2d(F.conv2d(x, horizontal), vertical))
+    return torch.cat(out)
 
 
 def anomaly_map(x: torch.Tensor, x_rec: torch.Tensor, sigma: float) -> torch.Tensor:
