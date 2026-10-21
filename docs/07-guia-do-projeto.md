@@ -149,6 +149,7 @@ Ao iniciar ou construir o front, `scripts/model-catalog.mjs` gera `public/data/m
 - Navegação anterior/próximo no visualizador e bloqueio das caixas enquanto os laudos estão ocultos.
 - Layout adaptado a telas pequenas e respeito à preferência por menos movimento.
 - Remoção do QR ilustrativo e da descrição de votação ao vivo; o jogo apresenta o progresso local real.
+  > ⚠️ 21/10/2026: o QR voltou, agora funcional. Ele abre o site na aba `#game`, para a turma jogar o desafio no próprio celular. A votação ao vivo continua fora.
 - Testes de navegador para os fluxos principais, em desktop e celular.
 - Percurso técnico com ilustração da distribuição latente, diagrama do modelo e exemplo real de cálculo do score.
 - Comparação simultânea das ordenações, com destaque e explicação da mudança de posição do exame selecionado.
@@ -185,6 +186,7 @@ O checkout contém os resultados e os arquivos exportados da interface, mas os p
 3. **Reprodutibilidade:** documentar onde obter cada versão dos pesos e garantir que exportação, metadados e relatórios correspondam à mesma execução.
 4. **Inferência interativa:** se a finalidade passar a incluir imagens novas, implementar uma API ou exportação para ONNX, com pré-processamento idêntico ao treino e estados de falha explícitos. Essa funcionalidade ainda não existe.
 5. **Apresentação colaborativa:** votação em tempo real exige serviço de sessões e armazenamento, além de QR funcional. Não faz parte do jogo local atual.
+   > ⚠️ 21/10/2026: o QR funcional já existe (abre `#game` no celular). Falta o serviço de sessões e armazenamento para juntar os votos.
 
 Fontes primárias desta explicação: o código em `module_vae/`, os componentes em `interfaces/`, `models/rsna_pa_v2/metadata.json` e `reports/rsna_pa_v2/metrics.json`.
 

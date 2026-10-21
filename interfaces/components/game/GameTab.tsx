@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import FakeQr from "@/components/game/FakeQr";
+import SiteQr from "@/components/game/SiteQr";
 import Icon from "@/components/Icon";
 import LabelTag from "@/components/LabelTag";
 import { byScore, fmtScore } from "@/lib/format";
@@ -96,12 +96,11 @@ export default function GameTab({ exams }: { exams: Exam[] }) {
           Ao revelar, compare quantas opacidades aparecem no início de cada
           fila. Este desafio é local, sem votação em tempo real.
         </p>
-        <h3>Na apresentação</h3>
-        <FakeQr />
-        <p className="qr-note">QR ilustrativo</p>
+        <h3 className="qr-title">Jogue pelo celular</h3>
+        <SiteQr />
         <p>
-          A turma escaneia o QR code e vota pelo celular. O placar mostra, ao
-          vivo, o ranking da turma, o do VAE e o laudo.
+          Escaneie o QR code para abrir este desafio no seu celular, monte a sua
+          ordem e compare com o VAE.
         </p>
         {revealed && <Results exams={exams} picks={picks} />}
       </aside>

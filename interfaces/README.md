@@ -69,6 +69,8 @@ As próximas exportações incluem `image_size`, `original_image_size` e, quando
 
 Importe o repositório na Vercel com **Root Directory = `interfaces`** e **Application Preset = Next.js**. O build precisa também das pastas `reports/` e `models/` na raiz do repositório para extrair a comparação: inclua os arquivos externos ao Root Directory no checkout disponibilizado ao build. Não é necessário disponibilizar pesos, DICOMs, cache de imagens ou Python para construir o site. Os comandos de instalação e de build ficam no padrão.
 
+O QR code do "Você × VAE" aponta para o domínio de produção que a Vercel informa no build (`VERCEL_PROJECT_PRODUCTION_URL`), já na aba do desafio (`/#game`). Para apontar para outro endereço, defina `NEXT_PUBLIC_SITE_URL` antes do build. Fora da Vercel e sem essa variável, o QR usa o endereço aberto no navegador.
+
 ## Dados
 
 `public/data/` é gerada a partir dos modelos treinados, na raiz do repositório:
@@ -89,4 +91,4 @@ Os termos de uso do RSNA Pneumonia Detection Challenge permitem usar e redistrib
 ## Próximos passos
 
 - Decoder exportado para ONNX e rodando no navegador, para o gerador combinar os 8 eixos ao mesmo tempo.
-- Votação da turma em tempo real no "Você × VAE", com QR code de verdade.
+- Votação da turma em tempo real no "Você × VAE". O QR já abre o desafio no celular, mas cada pessoa joga sozinha e não há placar da turma.
